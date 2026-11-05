@@ -6,7 +6,7 @@
 
 Yêu cầu: .NET SDK 10, Node.js 20.19 trở lên hoặc Node 22, Python 3.12 cho AI. Giữa kỳ chỉ cần .NET và Node; AI không phải điều kiện để chạy Rules Only.
 
-Mở CMD ở `D:\CongNgheTaiChinh\fraudshield-dotnet`:
+Mở CMD ở `D:\CongNgheTaiChinh\CongNgheTaiChinh`:
 
 ```cmd
 dotnet restore FraudShield.Clean.slnx
