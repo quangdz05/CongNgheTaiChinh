@@ -1,0 +1,148 @@
+{
+  "modelVersion": "hgb-20261030T034641Z",
+  "featureSchemaVersion": "1",
+  "featureNames": [
+    "amount",
+    "transactionCount1h",
+    "transactionCount24h",
+    "amountZScore",
+    "isNewDevice",
+    "isNewLocation",
+    "sharedDeviceUsers",
+    "sharedIpUsers",
+    "hourOfDay",
+    "merchantRisk"
+  ],
+  "datasetSource": "synthetic",
+  "datasetSha256": "edf5179f8eefd15d995a3f5971d8e924e4e30fa723d2b2f1c634777dc60bab31",
+  "trainedAt": "2026-10-30T03:46:42.032421+00:00",
+  "seed": 42,
+  "split": {
+    "train": 3600,
+    "validation": 1200,
+    "test": 1200,
+    "method": "chronological 60/20/20; equal timestamps kept together"
+  },
+  "fraudRate": 0.07716666666666666,
+  "validationMetrics": {
+    "precision": 0.6774193548387096,
+    "recall": 0.7078651685393258,
+    "f1": 0.6923076923076923,
+    "prAuc": 0.6391798068039392,
+    "rocAuc": 0.8711404848350004,
+    "confusionMatrix": [
+      [
+        1081,
+        30
+      ],
+      [
+        26,
+        63
+      ]
+    ],
+    "threshold": 0.6750000000000003
+  },
+  "testMetrics": {
+    "precision": 0.6568627450980392,
+    "recall": 0.7282608695652174,
+    "f1": 0.6907216494845361,
+    "prAuc": 0.5560200660415199,
+    "rocAuc": 0.8779822633809449,
+    "confusionMatrix": [
+      [
+        1073,
+        35
+      ],
+      [
+        25,
+        67
+      ]
+    ],
+    "threshold": 0.6750000000000003
+  },
+  "rulesBaseline": {
+    "precision": 0.40268456375838924,
+    "recall": 0.6521739130434783,
+    "f1": 0.4979253112033195,
+    "prAuc": 0.349711660124512,
+    "rocAuc": 0.8602505493643071,
+    "confusionMatrix": [
+      [
+        1019,
+        89
+      ],
+      [
+        32,
+        60
+      ]
+    ],
+    "threshold": 0.8
+  },
+  "hybridBlockMetrics": {
+    "precision": 0.651685393258427,
+    "recall": 0.6304347826086957,
+    "f1": 0.6408839779005525,
+    "prAuc": 0.560075611734053,
+    "rocAuc": 0.8873901271385968,
+    "confusionMatrix": [
+      [
+        1077,
+        31
+      ],
+      [
+        34,
+        58
+      ]
+    ],
+    "threshold": 0.8
+  },
+  "hybridBlockOverride": {
+    "precision": 0.4144736842105263,
+    "recall": 0.6847826086956522,
+    "f1": 0.5163934426229508,
+    "confusionMatrix": [
+      [
+        1019,
+        89
+      ],
+      [
+        29,
+        63
+      ]
+    ]
+  },
+  "limitations": [
+    "Synthetic results do not demonstrate real-world fraud performance.",
+    "Model score is not a calibrated probability.",
+    "Stored historical features include only earlier transactions, never labels.",
+    "ML threshold selected on validation; C# hybrid uses separately configured policy thresholds."
+  ],
+  "runtime": {
+    "python": "3.12.14",
+    "sklearn": "1.6.1",
+    "numpy": "2.2.5"
+  },
+  "parameters": {
+    "categorical_features": "from_dtype",
+    "class_weight": "balanced",
+    "early_stopping": false,
+    "interaction_cst": null,
+    "l2_regularization": 2.0,
+    "learning_rate": 0.08,
+    "loss": "log_loss",
+    "max_bins": 255,
+    "max_depth": null,
+    "max_features": 1.0,
+    "max_iter": 160,
+    "max_leaf_nodes": 15,
+    "min_samples_leaf": 20,
+    "monotonic_cst": null,
+    "n_iter_no_change": 10,
+    "random_state": 42,
+    "scoring": "loss",
+    "tol": 1e-07,
+    "validation_fraction": 0.1,
+    "verbose": 0,
+    "warm_start": false
+  }
+}

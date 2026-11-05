@@ -1,0 +1,17 @@
+<Solution>
+  <Folder Name="/Back-end/" />
+  <Folder Name="/Back-end/src/" />
+  <Folder Name="/Back-end/src/Services/" />
+  <Folder Name="/Back-end/src/Services/FraudDetectionService/">
+    <Project Path="Back-end/src/Services/FraudDetectionService/FraudDetectionService.Api/FraudDetectionService.Api.csproj" />
+    <Project Path="Back-end/src/Services/FraudDetectionService/FraudDetectionService.Application/FraudDetectionService.Application.csproj" />
+    <Project Path="Back-end/src/Services/FraudDetectionService/FraudDetectionService.Domain/FraudDetectionService.Domain.csproj" />
+    <Project Path="Back-end/src/Services/FraudDetectionService/FraudDetectionService.Infrastructure/FraudDetectionService.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/Back-end/src/Shared/">
+    <Project Path="Back-end/src/Shared/Shared.Security/Shared.Security.csproj" />
+  </Folder>
+  <Folder Name="/Back-end/tests/">
+    <Project Path="Back-end/tests/FraudDetectionService.Tests/FraudDetectionService.Tests.csproj" />
+  </Folder>
+</Solution>

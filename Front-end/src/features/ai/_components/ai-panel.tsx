@@ -1,0 +1,139 @@
+import { useState } from "react";
+import { Badge, Empty } from "../../../components/common";
+import { money, percent, type Evaluation } from "../../../shared/services/api";
+import { compareTransaction } from "../_services/services";
+export function AiPanel({
+  status,
+  metrics,
+  rows,
+}: {
+  status: string;
+  metrics: any;
+  rows: Evaluation[];
+}) {
+  const [id, setId] = useState(""),
+    [comparison, setComparison] = useState<any>(null),
+    [error, setError] = useState(""),
+    [busy, setBusy] = useState(false);
+  return (
+    <div className="ai-layout">
+      <section className="panel">
+        <div className="panel-heading">
+          <div>
+            <h2>Model evaluation</h2>
+            <p>Chỉ hiển thị số liệu API trả về từ quá trình huấn luyện.</p>
+          </div>
+          <Badge value={status === "Ready" ? "READY" : "OFFLINE"} />
+        </div>
+        {metrics ? (
+          <>
+            <div className="model-meta">
+              <strong>{metrics.modelVersion}</strong>
+              <span>{metrics.datasetSource}</span>
+              <span>{metrics.trainedAt}</span>
+            </div>
+            {metrics.datasetSource === "synthetic" && (
+              <div className="notice">
+                Dữ liệu mô phỏng. Các số liệu không đại diện cho hiệu quả phát
+                hiện gian lận thực tế.
+              </div>
+            )}
+            <div className="metric-grid">
+              {["precision", "recall", "f1", "prAuc", "rocAuc"].map((k) => (
+                <div key={k}>
+                  <small>{k}</small>
+                  <strong>{metrics.testMetrics?.[k]?.toFixed(3) ?? "—"}</strong>
+                </div>
+              ))}
+            </div>
+            <h3>Confusion matrix trên tập test</h3>
+            <div className="matrix">
+              {["TN", "FP", "FN", "TP"].map((k, i) => (
+                <div key={k}>
+                  <small>{k}</small>
+                  <strong>
+                    {metrics.testMetrics?.confusionMatrix?.flat()[i] ?? "—"}
+                  </strong>
+                </div>
+              ))}
+            </div>
+            <p className="helper">
+              Train / validation / test: {metrics.split?.train} /{" "}
+              {metrics.split?.validation} / {metrics.split?.test}. Ngưỡng được
+              chọn bằng validation. Quyết định Hybrid còn áp dụng chính sách C#.
+            </p>
+          </>
+        ) : (
+          <Empty
+            text="Chưa có mô hình sẵn sàng"
+            detail="Huấn luyện bằng ai-service/train.py, sau đó khởi động AI API. Chế độ Rules Only vẫn hoạt động."
+          />
+        )}
+      </section>
+      <section className="panel compare-panel">
+        <div className="panel-heading">
+          <div>
+            <h2>So sánh trên cùng giao dịch</h2>
+            <p>Dùng đặc trưng đã lưu, không thêm dữ liệu vào lịch sử.</p>
+          </div>
+        </div>
+        <select
+          aria-label="Giao dịch để so sánh"
+          value={id}
+          onChange={(e) => setId(e.target.value)}
+        >
+          <option value="">Chọn giao dịch</option>
+          {rows.map((t) => (
+            <option value={t.id} key={t.id}>
+              {t.userId} · {money(t.amount)}
+            </option>
+          ))}
+        </select>
+        <button
+          className="button primary wide"
+          disabled={!id || busy}
+          onClick={async () => {
+            setBusy(true);
+            setError("");
+            try {
+              setComparison(await compareTransaction(id));
+            } catch (e) {
+              setError((e as Error).message);
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          {busy ? "Đang so sánh…" : "So sánh luật và AI"}
+        </button>
+        {error && <div className="error">{error}</div>}
+        {comparison && (
+          <div className="compare-result">
+            <p>
+              Luật: <strong>{percent(comparison.ruleScore)}</strong> ·{" "}
+              {comparison.ruleDecision}
+            </p>
+            <p>
+              ML:{" "}
+              <strong>
+                {comparison.mlScore == null
+                  ? "Không khả dụng"
+                  : percent(comparison.mlScore)}
+              </strong>
+            </p>
+            <p>
+              Hybrid:{" "}
+              <strong>
+                {comparison.hybridScore == null
+                  ? "Chưa đánh giá"
+                  : percent(comparison.hybridScore)}
+              </strong>{" "}
+              · {comparison.hybridDecision ?? "—"}
+            </p>
+            <small>{comparison.note}</small>
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}

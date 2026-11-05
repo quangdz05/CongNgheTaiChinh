@@ -1,0 +1,11 @@
+{
+  "schemaVersion": "1",
+  "history": [
+    {"userId":"golden-user","amount":100,"timestamp":"2026-01-02T10:00:00+00:00","deviceId":"old","ipAddress":"192.0.2.1","country":"VN","category":"grocery"},
+    {"userId":"golden-user","amount":200,"timestamp":"2026-01-02T10:30:00+00:00","deviceId":"old","ipAddress":"192.0.2.1","country":"VN","category":"grocery"},
+    {"userId":"golden-user","amount":300,"timestamp":"2026-01-02T11:30:00+00:00","deviceId":"old","ipAddress":"192.0.2.1","country":"VN","category":"grocery"},
+    {"userId":"other-user","amount":900,"timestamp":"2026-01-02T11:40:00+00:00","deviceId":"new","ipAddress":"192.0.2.1","country":"VN","category":"grocery"}
+  ],
+  "transaction":{"userId":"golden-user","amount":400,"timestamp":"2026-01-02T12:00:00+00:00","deviceId":"new","ipAddress":"192.0.2.1","country":"US","category":"electronics"},
+  "expected":{"amount":400,"transactionCount1h":1,"transactionCount24h":3,"amountZScore":2.449489742783178,"isNewDevice":1,"isNewLocation":1,"sharedDeviceUsers":1,"sharedIpUsers":2,"hourOfDay":12,"merchantRisk":0.65}
+}

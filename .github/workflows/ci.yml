@@ -1,0 +1,23 @@
+name: FraudShield checks
+on: [push, pull_request]
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      OMP_NUM_THREADS: 2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with: {dotnet-version: '10.0.x'}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: dotnet build FraudShield.Clean.slnx
+      - run: dotnet test FraudShield.Clean.slnx --no-build
+      - run: npm ci && npm run build
+        working-directory: Front-end
+      - run: pip install -r ai-service/requirements.lock.txt
+      - run: python ai-service/train.py --synthetic --samples 6000
+      - run: python -m pytest ai-service/tests -q
+      - run: python scripts/integration_check.py

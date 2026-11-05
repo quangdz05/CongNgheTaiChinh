@@ -1,0 +1,12 @@
+**/bin
+**/obj
+**/obj-native
+**/node_modules
+**/dist
+.venv
+**/__pycache__
+**/*.db*
+**/.env*
+test-results
+ai-service/data
+ai-service/artifacts

@@ -1,0 +1,26 @@
+@base = http://127.0.0.1:5080
+@token = replace-with-login-token
+### Login
+POST {{base}}/api/auth/login
+Content-Type: application/json
+
+{"username":"admin","password":"Admin@123456"}
+
+### Analyze RulesOnly
+POST {{base}}/api/transactions
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{"userId":"HTTP-DEMO","amount":150000,"currency":"VND","merchant":"Demo Store","category":"grocery","country":"VN","deviceId":"DEVICE-HTTP","ipAddress":"192.0.2.10","mode":"RulesOnly"}
+
+### Dashboard
+GET {{base}}/api/dashboard
+Authorization: Bearer {{token}}
+
+### Alerts with server pagination
+GET {{base}}/api/transactions?decision=ALERTS&page=1&size=20
+Authorization: Bearer {{token}}
+
+### Model metrics
+GET {{base}}/api/ai/metrics
+Authorization: Bearer {{token}}
