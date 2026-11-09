@@ -7,6 +7,7 @@ public sealed class AnalystReviewConfiguration : IEntityTypeConfiguration<Analys
 {
     public void Configure(EntityTypeBuilder<AnalystReview> b)
     {
+        b.HasIndex(r => new { r.TransactionId, r.ReviewedAt });
         b.HasOne<Transaction>().WithMany().HasForeignKey(r => r.TransactionId);
     }
 }

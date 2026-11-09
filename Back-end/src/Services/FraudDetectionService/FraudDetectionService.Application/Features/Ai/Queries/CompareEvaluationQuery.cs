@@ -14,8 +14,8 @@ public sealed class CompareEvaluationQueryHandler(IFraudRepository repository, I
         var f = JsonSerializer.Deserialize<FeatureVector>(tx.Evaluation.FeaturesJson, DetectionService.Json)!;
         var prediction = await ai.PredictAsync(tx.Id, f, ct);
         var p = await repository.PolicyAsync(ct);
-        var matches = JsonSerializer.Deserialize<List<RuleMatch>>(tx.Evaluation.MatchesJson, DetectionService.Json)!;
-        var rule = tx.Evaluation.RuleScore;
+        var matches = RuleEngine.Evaluate(f, p);
+        var rule = matches.Count == 0 ? 0 : matches.Max(m => m.Score);
         var hybrid = prediction == null ? (double?)null : (1 - p.MlWeight) * rule + p.MlWeight * prediction.Score;
         var critical = matches.Any(m => m.Critical);
         if (critical && hybrid.HasValue)

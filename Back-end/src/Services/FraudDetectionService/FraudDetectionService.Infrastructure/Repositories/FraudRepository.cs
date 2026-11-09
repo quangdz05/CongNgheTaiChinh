@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 namespace FraudDetectionService.Infrastructure;
 
-public sealed class FraudRepository(FraudDbContext db) : IFraudRepository
+public sealed class FraudRepository(FraudDbContext db, TimeProvider? clock = null) : IFraudRepository
 {
     private DbSet<Transaction> Transactions => db.Transactions;
     private DbSet<Evaluation> Evaluations => db.Evaluations;
@@ -14,10 +14,20 @@ public sealed class FraudRepository(FraudDbContext db) : IFraudRepository
     private DbSet<AppUser> Users => db.Users;
     private DbSet<AuditEntry> Audits => db.Audits;
     public Task<Transaction?> GetAsync(Guid id, CancellationToken ct) => Transactions.Include(t => t.Evaluation).SingleOrDefaultAsync(t => t.Id == id, ct);
-    public Task<List<Transaction>> HistoryAsync(DateTimeOffset before, CancellationToken ct) => Transactions.AsNoTracking().Where(t => t.Timestamp < before && t.Timestamp >= before.AddHours(-24)).ToListAsync(ct);
+    public Task<List<Transaction>> HistoryAsync(DateTimeOffset before, string userId, string deviceHash, string ipHash, CancellationToken ct) => Transactions.AsNoTracking()
+        .Where(t => t.Timestamp < before && t.Timestamp >= before.AddHours(-24)
+            && (t.UserId == userId || t.DeviceHash == deviceHash || t.IpHash == ipHash))
+        .Select(t => new Transaction { UserId = t.UserId, Amount = t.Amount, Timestamp = t.Timestamp, DeviceHash = t.DeviceHash, IpHash = t.IpHash, Country = t.Country })
+        .ToListAsync(ct);
     public async Task AddAsync(Transaction tx, CancellationToken ct)
     {
         Transactions.Add(tx);
+        if (tx.Evaluation.Decision != "ALLOW")
+        {
+            var alert = AlertPolicy.Create(tx, (clock ?? TimeProvider.System).GetUtcNow());
+            db.Alerts.Add(alert);
+            db.AlertEvents.Add(AlertWorkflowService.Event(alert, "Created", alert.CreatedAt));
+        }
         await db.SaveChangesAsync(ct);
     }
     public Task<RulePolicy> PolicyAsync(CancellationToken ct) => Policies.SingleAsync(ct);
@@ -33,6 +43,9 @@ public sealed class FraudRepository(FraudDbContext db) : IFraudRepository
         return q;
     }
     public Task<List<Transaction>> ListAsync(string? decision, string? search, int page, int size, CancellationToken ct) => Filter(decision, search).OrderByDescending(t => t.Timestamp).ThenBy(t => t.Id).Skip((page - 1) * size).Take(size).ToListAsync(ct);
+    public Task<List<TransactionSummary>> ListSummariesAsync(string? decision, string? search, int page, int size, CancellationToken ct) => Filter(decision, search)
+        .OrderByDescending(t => t.Timestamp).ThenBy(t => t.Id).Skip((page - 1) * size).Take(size)
+        .Select(t => new TransactionSummary(t.Id, t.UserId, t.Amount, t.Currency, t.Merchant, t.Timestamp, t.Evaluation.FinalScore, t.Evaluation.Decision)).ToListAsync(ct);
     public Task<int> CountAsync(string? decision, string? search, CancellationToken ct) => Filter(decision, search).CountAsync(ct);
     public Task<List<AnalystReview>> ReviewsAsync(Guid id, CancellationToken ct) => Reviews.AsNoTracking().Where(r => r.TransactionId == id).OrderByDescending(r => r.ReviewedAt).ToListAsync(ct);
     public async Task ReviewAsync(AnalystReview review, CancellationToken ct)
@@ -69,21 +82,32 @@ public sealed class FraudRepository(FraudDbContext db) : IFraudRepository
     }
     public async Task<object> StatsAsync(CancellationToken ct)
     {
-        var rows = await Transactions.AsNoTracking().Include(t => t.Evaluation).OrderByDescending(t => t.Timestamp).Take(10000).ToListAsync(ct);
-        var reviews = await Reviews.AsNoTracking().OrderByDescending(r => r.ReviewedAt).Take(10000).ToListAsync(ct);
-        var reviewed = reviews.Select(r => r.TransactionId).ToHashSet();
+        var totals = await Transactions.GroupBy(t => 1).Select(g => new
+        {
+            Total = g.Count(), Amount = g.Sum(t => t.Amount),
+            Allow = g.Count(t => t.Evaluation.Decision == "ALLOW"),
+            Review = g.Count(t => t.Evaluation.Decision == "REVIEW"),
+            Block = g.Count(t => t.Evaluation.Decision == "BLOCK"),
+            AverageLatencyMs = g.Average(t => t.Evaluation.LatencyMs)
+        }).SingleOrDefaultAsync(ct);
+        var pending = await Transactions.CountAsync(t => t.Evaluation.Decision != "ALLOW" && !Reviews.Any(r => r.TransactionId == t.Id), ct);
+        var confirmedFraud = await Transactions.CountAsync(t => Reviews.Where(r => r.TransactionId == t.Id)
+            .OrderByDescending(r => r.ReviewedAt).ThenByDescending(r => r.Id).Select(r => r.IsFraud).FirstOrDefault(), ct);
+        // Only charts and device links use a bounded sample; cards cover the entire database.
+        var rows = await Transactions.AsNoTracking().OrderByDescending(t => t.Timestamp).ThenBy(t => t.Id).Take(10000)
+            .Select(t => new { t.Timestamp, t.DeviceHash, t.UserId, Decision = t.Evaluation.Decision }).ToListAsync(ct);
         return new
         {
-            total = await Transactions.CountAsync(ct),
+            total = totals?.Total ?? 0,
             sampled = rows.Count,
-            amount = rows.Sum(t => t.Amount),
-            allow = rows.Count(t => t.Evaluation.Decision == "ALLOW"),
-            review = rows.Count(t => t.Evaluation.Decision == "REVIEW"),
-            block = rows.Count(t => t.Evaluation.Decision == "BLOCK"),
-            pending = rows.Count(t => t.Evaluation.Decision != "ALLOW" && !reviewed.Contains(t.Id)),
-            confirmedFraud = reviews.GroupBy(r => r.TransactionId).Count(g => g.First().IsFraud),
-            averageLatencyMs = rows.Count == 0 ? 0 : rows.Average(t => t.Evaluation.LatencyMs),
-            daily = rows.GroupBy(t => t.Timestamp.UtcDateTime.ToString("yyyy-MM-dd")).OrderBy(g => g.Key).Select(g => new { date = g.Key, total = g.Count(), flagged = g.Count(t => t.Evaluation.Decision != "ALLOW") }),
+            amount = totals?.Amount ?? 0,
+            allow = totals?.Allow ?? 0,
+            review = totals?.Review ?? 0,
+            block = totals?.Block ?? 0,
+            pending,
+            confirmedFraud,
+            averageLatencyMs = totals?.AverageLatencyMs ?? 0,
+            daily = rows.GroupBy(t => t.Timestamp.UtcDateTime.ToString("yyyy-MM-dd")).OrderBy(g => g.Key).Select(g => new { date = g.Key, total = g.Count(), flagged = g.Count(t => t.Decision != "ALLOW") }),
             rings = rows.GroupBy(t => t.DeviceHash).Where(g => g.Select(t => t.UserId).Distinct().Count() >= 3).Select(g => new { device = g.Key[..12], users = g.Select(t => t.UserId).Distinct().ToList(), transactions = g.Count() }).Take(20)
         };
     }

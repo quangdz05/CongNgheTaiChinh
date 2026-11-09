@@ -9,7 +9,7 @@ public sealed class AiClient(HttpClient http) : IAiClient
     {
         try
         {
-            var response = await http.PostAsJsonAsync("v1/predict", new
+            using var response = await http.PostAsJsonAsync("v1/predict", new
             {
                 transactionId = id,
                 featureSchemaVersion = FeatureVector.SchemaVersion,

@@ -1,33 +1,15 @@
-import { AlertTriangle, Ban, Check, X } from "lucide-react";
-import { useState } from "react";
+import { AlertTriangle, X } from "lucide-react";
 import { Badge } from "../../../components/common";
 import { money, percent, type Evaluation } from "../../../shared/services/api";
-import { submitReview } from "../_services/services";
 export function Detail({
   item: t,
   onClose,
-  onRefresh,
+  onOpenAlerts,
 }: {
   item: Evaluation;
   onClose: () => void;
-  onRefresh: () => Promise<void>;
+  onOpenAlerts: () => void;
 }) {
-  const [notes, setNotes] = useState(""),
-    [error, setError] = useState(""),
-    [busy, setBusy] = useState(false);
-  async function review(isFraud: boolean) {
-    setBusy(true);
-    setError("");
-    try {
-      await submitReview(t.id, isFraud, notes);
-      setNotes("");
-      await onRefresh();
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  }
   return (
     <div className="overlay">
       <section className="modal detail">
@@ -99,31 +81,20 @@ export function Detail({
             ))}
           </div>
         </details>
-        <h3>Kết luận kiểm tra</h3>
-        <textarea
-          aria-label="Ghi chú kiểm tra"
-          placeholder="Ghi căn cứ kiểm tra, tối thiểu 5 ký tự…"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          maxLength={1000}
-        />
-        {error && <div className="error">{error}</div>}
-        <div className="actions review-actions">
-          <button
-            className="button"
-            disabled={busy || notes.trim().length < 5}
-            onClick={() => review(false)}
-          >
-            <Check size={16} /> Giao dịch hợp lệ
-          </button>
-          <button
-            className="button danger"
-            disabled={busy || notes.trim().length < 5}
-            onClick={() => review(true)}
-          >
-            <Ban size={16} /> Xác nhận gian lận
-          </button>
-        </div>
+        {t.decision !== "ALLOW" && (
+          <div className="notice">
+            <p>
+              Nhận việc và ghi kết luận tại cảnh báo riêng. Khi chưa đủ bằng
+              chứng, có thể chờ hoặc đóng Unknown.
+            </p>
+            <button className="button" onClick={onOpenAlerts}>
+              Mở cảnh báo của giao dịch
+            </button>
+          </div>
+        )}
+        {t.reviews.length > 0 && (
+          <h3>Kết luận cũ — chưa xác minh theo quy trình Alert</h3>
+        )}
         {t.reviews.map((r) => (
           <div className="review-entry" key={r.id}>
             <strong>

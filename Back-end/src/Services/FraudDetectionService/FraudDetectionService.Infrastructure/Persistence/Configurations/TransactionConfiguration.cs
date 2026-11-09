@@ -11,6 +11,8 @@ public sealed class TransactionConfiguration : IEntityTypeConfiguration<Transact
         b.HasIndex(t => new { t.UserId, t.Timestamp });
         b.HasIndex(t => t.Timestamp);
         b.HasIndex(t => t.DeviceHash);
+        b.HasIndex(t => new { t.DeviceHash, t.Timestamp });
+        b.HasIndex(t => new { t.IpHash, t.Timestamp });
         b.HasOne(t => t.Evaluation).WithOne().HasForeignKey<Evaluation>(e => e.TransactionId).OnDelete(DeleteBehavior.Cascade);
     }
 }

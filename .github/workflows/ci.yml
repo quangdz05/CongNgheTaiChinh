@@ -21,3 +21,5 @@ jobs:
       - run: python ai-service/train.py --synthetic --samples 6000
       - run: python -m pytest ai-service/tests -q
       - run: python scripts/integration_check.py
+      - run: python scripts/regression_check.py
+      - run: python scripts/alert_check.py

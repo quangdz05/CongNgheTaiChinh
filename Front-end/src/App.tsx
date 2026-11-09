@@ -23,9 +23,11 @@ import {
   SlidersHorizontal,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge, Empty } from "./components/common";
 import { AiPanel } from "./features/ai/_components/ai-panel";
+import { AlertQueue } from "./features/alerts/_components/alert-queue";
+import { type AlertStats } from "./features/alerts/_services/services";
 import { Login } from "./features/auth/_components/login-form";
 import { Rules } from "./features/rules/_components/rules-form";
 import { Detail } from "./features/transactions/_components/transaction-detail";
@@ -35,9 +37,11 @@ import {
   money,
   percent,
   post,
+  resetApiSession,
   type Evaluation,
   type Policy,
   type Stats,
+  type TransactionSummary,
 } from "./shared/services/api";
 const pages = [
   ["overview", "Tổng quan", LayoutDashboard],
@@ -51,12 +55,53 @@ const pages = [
 type Page = (typeof pages)[number][0];
 type User = { username: string; role: string };
 export default function App() {
-  const [user, setUser] = useState<User | null>(null),
-    [ready, setReady] = useState(false),
-    [page, setPage] = useState<Page>("overview"),
+  const [user, setUser] = useState<User | null>(null);
+  const [ready, setReady] = useState(false);
+  const logout = useCallback(() => {
+    sessionStorage.removeItem("fs-token");
+    resetApiSession();
+    setUser(null);
+  }, []);
+  useEffect(() => {
+    let active = true;
+    window.addEventListener("fs-logout", logout);
+    if (sessionStorage.getItem("fs-token"))
+      api<User>("/auth/me")
+        .then((u) => {
+          if (active) setUser(u);
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (active) setReady(true);
+        });
+    else setReady(true);
+    return () => {
+      active = false;
+      window.removeEventListener("fs-logout", logout);
+    };
+  }, [logout]);
+  if (!ready)
+    return (
+      <div className="splash">
+        <LoaderCircle className="spin" /> Đang kết nối FraudShield…
+      </div>
+    );
+  if (!user)
+    return (
+      <Login
+        onLogin={(u) => {
+          resetApiSession();
+          setUser(u);
+        }}
+      />
+    );
+  return <Workspace key={user.username} user={user} onLogout={logout} />;
+}
+function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
+  const [page, setPage] = useState<Page>("overview"),
     [mode, setMode] = useState("RulesOnly"),
     [stats, setStats] = useState<Stats | null>(null),
-    [rows, setRows] = useState<Evaluation[]>([]),
+    [rows, setRows] = useState<TransactionSummary[]>([]),
     [total, setTotal] = useState(0),
     [pageNo, setPageNo] = useState(1),
     [search, setSearch] = useState(""),
@@ -70,60 +115,139 @@ export default function App() {
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [toast, setToast] = useState("");
+  const [revision, setRevision] = useState(0);
+  const [alertStats, setAlertStats] = useState<AlertStats | null>(null);
+  useEffect(() => {
+    let active = true;
+    let controller: AbortController | null = null;
+    const refresh = async () => {
+      controller?.abort();
+      controller = new AbortController();
+      const request = controller;
+      try {
+        const result = await api<AlertStats>("/alerts/stats", {
+          signal: request.signal,
+        });
+        if (active && !request.signal.aborted) setAlertStats(result);
+      } catch {
+        /* Queue shows its own sync errors; keep last known counters. */
+      }
+    };
+    void refresh();
+    const timer = setInterval(() => {
+      if (!document.hidden) void refresh();
+    }, 10000);
+    const focus = () => {
+      if (!document.hidden) void refresh();
+    };
+    window.addEventListener("focus", focus);
+    window.addEventListener("online", focus);
+    document.addEventListener("visibilitychange", focus);
+    return () => {
+      active = false;
+      controller?.abort();
+      clearInterval(timer);
+      window.removeEventListener("focus", focus);
+      window.removeEventListener("online", focus);
+      document.removeEventListener("visibilitychange", focus);
+    };
+  }, [revision]);
+  const detailController = useRef<AbortController | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(
+    () => () => {
+      detailController.current?.abort();
+      clearTimeout(toastTimer.current);
+    },
+    [],
+  );
   const notify = (msg: string) => {
     setToast(msg);
-    setTimeout(() => setToast(""), 5000);
+    clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(""), 5000);
   };
-  useEffect(() => {
-    const logout = () => setUser(null);
-    window.addEventListener("fs-logout", logout);
-    if (sessionStorage.getItem("fs-token"))
-      api<User>("/auth/me")
-        .then(setUser)
-        .catch(() => {})
-        .finally(() => setReady(true));
-    else setReady(true);
-    return () => window.removeEventListener("fs-logout", logout);
-  }, []);
   const load = useCallback(async () => {
-    if (!user) return;
-    setError("");
-    try {
-      const [s, t, p] = await Promise.all([
-        api<Stats>("/dashboard"),
-        api<{ items: Evaluation[]; total: number }>(
-          `/transactions?page=${pageNo}&size=12&search=${encodeURIComponent(search)}&decision=${page === "alerts" && !filter ? "ALERTS" : filter}`,
-        ),
-        api<Policy>("/rules"),
-      ]);
-      setStats(s);
-      setRows(t.items);
-      setTotal(t.total);
-      setPolicy(p);
-    } catch (e) {
-      setError((e as Error).message);
-    }
-  }, [user, pageNo, search, filter, page]);
+    setRevision((n) => n + 1);
+  }, []);
   useEffect(() => {
+    if (!["overview", "transactions", "ai"].includes(page)) return;
+    const controller = new AbortController();
+    setRows([]);
     const id = setTimeout(() => {
-      void load();
+      setError("");
+      api<{ items: TransactionSummary[]; total: number }>(
+        `/transactions?page=${pageNo}&size=12&search=${encodeURIComponent(search)}&decision=${filter}`,
+        { signal: controller.signal },
+      )
+        .then((t) => {
+          if (!controller.signal.aborted) {
+            setRows(t.items);
+            setTotal(t.total);
+          }
+        })
+        .catch((e) => {
+          if (!controller.signal.aborted) setError(e.message);
+        });
     }, 250);
-    return () => clearTimeout(id);
-  }, [load]);
+    return () => {
+      clearTimeout(id);
+      controller.abort();
+    };
+  }, [pageNo, search, filter, page, revision]);
   useEffect(() => {
-    if (!user) return;
-    api<{ status: string }>("/ai/status")
-      .then((x) => setAiStatus(x.status))
-      .catch(() => setAiStatus("Unavailable"));
+    const controller = new AbortController();
+    const options = { signal: controller.signal };
+    const reportError = (e: Error) => {
+      if (!controller.signal.aborted) setError(e.message);
+    };
+    if (["overview", "network"].includes(page))
+      api<Stats>("/dashboard", options)
+        .then((s) => {
+          if (!controller.signal.aborted) setStats(s);
+        })
+        .catch(reportError);
+    if (["overview", "rules"].includes(page))
+      api<Policy>("/rules", options)
+        .then((p) => {
+          if (!controller.signal.aborted) setPolicy(p);
+        })
+        .catch(reportError);
+    api<{ status: string }>("/ai/status", options)
+      .then((x) => {
+        if (!controller.signal.aborted) setAiStatus(x.status);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setAiStatus("Unavailable");
+      });
     if (page === "ai")
-      api("/ai/metrics")
-        .then(setMetrics)
-        .catch(() => setMetrics(null));
+      api("/ai/metrics", options)
+        .then((m) => {
+          if (!controller.signal.aborted) setMetrics(m);
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setMetrics(null);
+        });
     if (page === "audit" && user.role === "Admin")
-      api<any[]>("/audit")
-        .then(setAudit)
-        .catch((e) => setError(e.message));
-  }, [user, page, busy]);
+      api<any[]>("/audit", options)
+        .then((a) => {
+          if (!controller.signal.aborted) setAudit(a);
+        })
+        .catch(reportError);
+    return () => controller.abort();
+  }, [user.role, page, revision]);
+  async function openDetail(id: string) {
+    detailController.current?.abort();
+    const controller = new AbortController();
+    detailController.current = controller;
+    try {
+      const item = await api<Evaluation>("/transactions/" + id, {
+        signal: controller.signal,
+      });
+      if (!controller.signal.aborted) setSelected(item);
+    } catch (e) {
+      if (!controller.signal.aborted) setError((e as Error).message);
+    }
+  }
   async function demo() {
     setBusy(true);
     setError("");
@@ -157,15 +281,7 @@ export default function App() {
       setError((e as Error).message);
     }
   }
-  if (!ready)
-    return (
-      <div className="splash">
-        <LoaderCircle className="spin" /> Đang kết nối FraudShield…
-      </div>
-    );
-  if (!user) return <Login onLogin={setUser} />;
-  const visibleRows =
-    page === "alerts" ? rows.filter((r) => r.decision !== "ALLOW") : rows;
+  const visibleRows = rows;
   return (
     <div className="app">
       <aside>
@@ -201,7 +317,9 @@ export default function App() {
               >
                 <Icon size={18} />
                 {label}
-                {key === "alerts" && !!stats?.pending && <b>{stats.pending}</b>}
+                {key === "alerts" && !!alertStats?.openAlerts && (
+                  <b>{alertStats.openAlerts}</b>
+                )}
               </button>
             ))}
         </nav>
@@ -215,8 +333,7 @@ export default function App() {
           <button
             className="user"
             onClick={() => {
-              sessionStorage.removeItem("fs-token");
-              setUser(null);
+              onLogout();
             }}
           >
             <span className="avatar">
@@ -335,10 +452,10 @@ export default function App() {
                     tone: "green",
                   },
                   {
-                    label: "Chờ kiểm tra",
-                    value: stats?.pending ?? 0,
+                    label: "Cảnh báo đang mở",
+                    value: alertStats?.openAlerts ?? 0,
                     Icon: Clock3,
-                    meta: "Cảnh báo chưa có đánh giá",
+                    meta: `${alertStats?.overdue ?? 0} quá SLA · gồm Waiting / Escalated`,
                     tone: "amber",
                   },
                   {
@@ -445,7 +562,7 @@ export default function App() {
                     </strong>
                   </div>
                   <p className="helper">
-                    Độ trễ chưa bao gồm thời gian lưu DB và mạng. Nhãn gian lận
+                    Độ trễ gồm chờ xử lý, chưa gồm lưu DB và mạng. Nhãn gian lận
                     chỉ ghi nhận sau kiểm tra.
                   </p>
                   <button
@@ -464,17 +581,19 @@ export default function App() {
               </div>
             </>
           )}
-          {(page === "overview" ||
-            page === "transactions" ||
-            page === "alerts") && (
+          {page === "alerts" && (
+            <AlertQueue
+              initialSearch={search}
+              revision={revision}
+              stats={alertStats}
+              onChanged={load}
+            />
+          )}
+          {(page === "overview" || page === "transactions") && (
             <section className="panel transaction-panel">
               <div className="panel-heading">
                 <div>
-                  <h2>
-                    {page === "alerts"
-                      ? "Danh sách cảnh báo"
-                      : "Giao dịch gần đây"}
-                  </h2>
+                  <h2>Giao dịch gần đây</h2>
                   <p>Chọn một giao dịch để xem căn cứ và kết quả kiểm tra.</p>
                 </div>
                 <button className="button" onClick={exportCsv}>
@@ -524,9 +643,11 @@ export default function App() {
                     {visibleRows.map((t) => (
                       <tr
                         key={t.id}
-                        onClick={() => setSelected(t)}
+                        onClick={() => void openDetail(t.id)}
                         tabIndex={0}
-                        onKeyDown={(e) => e.key === "Enter" && setSelected(t)}
+                        onKeyDown={(e) =>
+                          e.key === "Enter" && void openDetail(t.id)
+                        }
                       >
                         <td>
                           <strong>{t.userId}</strong>
@@ -571,16 +692,13 @@ export default function App() {
                 <Empty
                   text="Chưa có giao dịch phù hợp"
                   detail={
-                    page === "alerts"
-                      ? "Không có cảnh báo trong trang đang xem. Lọc REVIEW hoặc BLOCK để tìm chính xác."
-                      : "Bắt đầu bằng một giao dịch hoặc bộ dữ liệu mô phỏng."
+                    "Bắt đầu bằng một giao dịch hoặc bộ dữ liệu mô phỏng."
                   }
                 />
               )}
               <div className="pagination">
                 <span>
                   {total} giao dịch phù hợp · Trang {pageNo}
-                  {page === "alerts" ? " · Ẩn ALLOW trong trang" : ""}
                 </span>
                 <div>
                   <button
@@ -648,7 +766,7 @@ export default function App() {
           {page === "ai" && (
             <AiPanel status={aiStatus} metrics={metrics} rows={rows} />
           )}
-          {page === "audit" && (
+          {page === "audit" && user.role === "Admin" && (
             <section className="panel">
               <div className="panel-heading">
                 <h2>Lịch sử thay đổi và kiểm tra</h2>
@@ -700,9 +818,10 @@ export default function App() {
         <Detail
           item={selected}
           onClose={() => setSelected(null)}
-          onRefresh={async () => {
-            setSelected(await api<Evaluation>("/transactions/" + selected.id));
-            await load();
+          onOpenAlerts={() => {
+            setSearch(selected.id);
+            setPage("alerts");
+            setSelected(null);
           }}
         />
       )}

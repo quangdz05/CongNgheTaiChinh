@@ -89,6 +89,7 @@ cd Front-end
 npm run build
 cd ..
 .venv\Scripts\python.exe scripts\smoke_test.py
+.venv\Scripts\python.exe scripts\regression_check.py
 ```
 
 Smoke test cần backend và AI đang chạy, tạo dữ liệu giả có mã riêng, ghi một đánh giá và tăng phiên bản luật một lần. Không chạy trên database thật. Test bao gồm quyền Analyst, key/token sai, idempotency, xung đột cấu hình, AI thật qua HTTP và đối chiếu đặc trưng C#/Python.
@@ -117,10 +118,22 @@ docker compose up --build
 
 Mở http://localhost:8080. Cấu hình compose dành cho **demo Development trên loopback**, có tài khoản mẫu; không dùng nguyên cấu hình này làm public deployment. AI model lưu trong volume riêng. Docker cần được kiểm chứng trên máy có Docker Engine; xem giới hạn kiểm chứng trong `docs/VERIFICATION.md`.
 
+Để người khác truy cập qua tên miền và HTTPS, dùng cấu hình riêng `compose.public.yaml` theo [hướng dẫn triển khai công khai](docs/DEPLOY_PUBLIC.md). Cấu hình này cần máy chủ Linux, tên miền và các bí mật riêng trong `.env`; không dùng mật khẩu Development.
+
+Nếu chỉ cần link tạm cho buổi demo mà chưa có VPS/tên miền, xem [hướng dẫn chia sẻ tạm thời](docs/SHARE_TEMPORARY.md).
+
 ## Phạm vi và giới hạn
 
 Prototype một workspace, hai vai trò Admin/Analyst; chưa hỗ trợ cô lập nhiều tổ chức. Các ngưỡng và nhóm merchant là giả định demo. HMAC thiết bị/IP nhất quán trước khi lưu và tạo lịch sử. Token một giờ nằm trong sessionStorage; không có cơ chế thu hồi/refresh trong phiên bản này. Triển khai thật cần HTTPS, quản lý khóa, chính sách lưu dữ liệu, sao lưu, phân quyền tổ chức và đánh giá rủi ro dữ liệu. Production yêu cầu `Security__JwtSecret`, `Security__PiiSalt` ít nhất 32 ký tự, `Security__AdminPassword` từ 12 ký tự khi khởi tạo và `Ai__ApiKey`; AI đặt `APP_ENV=production` và `AI_SERVICE_KEY` tương ứng.
 
-Mỗi giao dịch lưu snapshot cấu hình luật, feature schema v1, điểm, chế độ và phiên bản mô hình. Giao dịch là bất biến; gửi lại cùng ID/nội dung trả kết quả cũ, khác nội dung trả 409. Review được lưu riêng và audit; BLOCK không được tự coi là nhãn thật. Độ trễ hiển thị đo lõi và HTTP AI, chưa bao gồm commit DB hay thời gian mạng frontend.
+Mỗi giao dịch lưu snapshot cấu hình luật, feature schema v1, điểm, chế độ và phiên bản mô hình. Giao dịch là bất biến; giao diện giữ ID khi thử lại cùng nội dung, gửi lại cùng ID/nội dung trả kết quả cũ, khác nội dung trả 409. Alert được tạo riêng cho REVIEW/BLOCK và lưu lịch sử điều tra; BLOCK không được tự coi là nhãn thật. Độ trễ hiển thị gồm chờ xử lý, tính điểm và HTTP AI, chưa bao gồm commit DB hay thời gian mạng frontend. Giao dịch dùng chung người dùng, thiết bị, IP hoặc ID được đồng bộ trong một API instance; các giao dịch độc lập có thể xử lý song song. Chạy nhiều API instance cần cơ chế đồng bộ ở cấp cơ sở dữ liệu hoặc hệ thống phân tán cho luồng phân tích giao dịch; nhận việc Alert đã có kiểm tra version ở DB.
+
+## Quản lý cảnh báo (09/11/2026)
+
+Alert có vòng đời `New → Assigned → InProgress → Waiting / Escalated / Closed`, owner, ưu tiên P1/P2/P3 và hạn đóng 15/60/240 phút chạy 24/7. Waiting không dừng SLA. Admin điều phối/chuyển cấp/mở lại; Analyst nhận việc và xử lý việc mình. Đóng phải có căn cứ; `Unknown` và `Disputed` được lưu riêng, không tự coi là hợp lệ hoặc đưa vào huấn luyện AI. Queue cập nhật định kỳ 10 giây, hiển thị trạng thái dữ liệu cũ khi mất mạng/quá 30 giây chưa đồng bộ.
+
+API mới: `GET /api/alerts`, `/api/alerts/stats`, `/api/alerts/{id}`, `/api/alerts/{id}/timeline`; các lệnh `POST /api/alerts/{id}/{command}` cần `requestId` và `expectedVersion`. `POST /api/transactions/{id}/reviews` trả 409 `LEGACY_REVIEW_DISABLED`; GET giao dịch/review cũ vẫn giữ. Khi chạy bản mới, migration thêm bảng Alert và startup backfill mọi non-ALLOW thành New/Unknown, giữ review cũ và bắt đầu SLA tại import. Cần sao lưu/đối soát backlog trước triển khai lên dữ liệu đang phục vụ. Chưa deploy thay đổi này.
+
+Chi tiết: [đặc tả](docs/team/01-requirements.md), [triển khai và kiểm chứng](docs/team/02-implementation.md). Kiểm tra HTTP với database tạm: `.venv\Scripts\python.exe scripts\alert_check.py`. Kiểm tra UI tùy chọn: đặt `ALERT_UI_CHECK=1` rồi chạy script trên; cần Playwright và Edge, không cài thêm thư viện vào ứng dụng.
 
 Nguồn ý tưởng và các tình huống luật được tham khảo từ dự án FraudShield Python trong thư mục bên cạnh; bản .NET/React được triển khai mới. Xem `THIRD_PARTY_NOTICES.md`.

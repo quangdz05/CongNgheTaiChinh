@@ -1294,6 +1294,81 @@ form .helper {
 .spin {
   animation: spin 1s linear infinite;
 }
+.alert-filters {
+  flex-wrap: wrap;
+  align-items: center;
+}
+.alert-filters > input {
+  min-width: 200px;
+  flex: 1;
+}
+.alert-filters label {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 11px;
+}
+.alert-sync {
+  padding: 0 23px 15px;
+  font-size: 11px;
+  color: #64748b;
+}
+.alert-sync strong {
+  color: #a16207;
+}
+.alert-link {
+  color: #147d68;
+  background: none;
+  border: 0;
+  padding: 5px 0;
+  cursor: pointer;
+  font-weight: 600;
+}
+.alert-queue td small {
+  display: block;
+}
+.alert-dialog {
+  border: 0;
+  margin: auto;
+  padding: 26px;
+  color: #334155;
+  max-width: calc(100vw - 20px);
+}
+.alert-dialog::backdrop {
+  background: #101d2d88;
+  backdrop-filter: blur(3px);
+}
+.alert-dialog p {
+  font-size: 12px;
+  line-height: 1.7;
+}
+.alert-command {
+  display: grid;
+  gap: 15px;
+  margin: 22px 0;
+  padding: 18px;
+  background: #f5f8f7;
+  border-radius: 8px;
+}
+.alert-command fieldset {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #cbd5e1;
+}
+.alert-changes {
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.alert-changes > div {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 10px;
+  padding: 5px 0;
+}
+.alert-changes dd {
+  margin: 0;
+}
 @keyframes spin {
   to {
     transform: rotate(360deg);
@@ -1438,6 +1513,9 @@ form .helper {
   }
 }
 @media (max-width: 520px) {
+  .page-heading .actions {
+    flex-wrap: wrap;
+  }
   .content {
     padding: 22px 13px 0;
   }

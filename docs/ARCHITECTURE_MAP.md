@@ -20,6 +20,12 @@ Gốc service: `Back-end/src/Services/FraudDetectionService/`.
 | Tạo đặc trưng | `FraudDetectionService.Application/Features/Transactions/Services/FeatureBuilder.cs` |
 | Bộ luật | `FraudDetectionService.Application/Features/Rules/Engine/RuleEngine.cs` |
 | Ghi nhận kiểm tra | `FraudDetectionService.Application/Features/Alerts/Commands/ReviewTransactionCommand.cs` |
+| Alert/owner/SLA/kết luận và sự kiện | `FraudDetectionService.Domain/Entities/Alert.cs` |
+| Contract và workflow Alert | `FraudDetectionService.Application/Features/Alerts/{AlertContracts,AlertWorkflowService}.cs` |
+| Lưu, lọc, concurrency và receipt Alert | `FraudDetectionService.Infrastructure/Repositories/AlertRepository.cs` |
+| Mapping Alert/event/receipt | `FraudDetectionService.Infrastructure/Persistence/Configurations/AlertConfiguration.cs` |
+| Backfill Alert legacy | `FraudDetectionService.Infrastructure/Services/Alerts/AlertBackfill.cs` |
+| API Alert và worker SLA | `FraudDetectionService.Api/Controllers/AlertsController.cs`, `Services/AlertSlaWorker.cs` |
 | Sửa chính sách | `FraudDetectionService.Application/Features/Rules/Commands/UpdateRulePolicyCommand.cs` |
 | Sinh demo | `FraudDetectionService.Application/Features/Demo/Commands/RunDemoCommand.cs` |
 | So sánh luật và AI | `FraudDetectionService.Application/Features/Ai/Queries/CompareEvaluationQuery.cs` |
@@ -48,6 +54,8 @@ Dependency: Domain không tham chiếu layer khác. Application chỉ tham chi�
 | Đăng nhập | `features/auth/_components/login-form.tsx` |
 | Tạo giao dịch | `features/transactions/_components/transaction-form.tsx` |
 | Chi tiết và đánh giá | `features/transactions/_components/transaction-detail.tsx` |
+| Queue, điều tra, timeline và cập nhật Alert | `features/alerts/_components/alert-queue.tsx` |
+| API/kiểu dữ liệu Alert | `features/alerts/_services/services.ts` |
 | Cấu hình luật | `features/rules/_components/rules-form.tsx` |
 | AI metrics và so sánh | `features/ai/_components/ai-panel.tsx` |
 | API từng feature | `features/{feature}/_services/services.ts` |

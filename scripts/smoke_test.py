@@ -24,8 +24,16 @@ def main():
     assert client.post('/api/transactions',json={**req,'amount':200000}).status_code==409
     critical=client.post('/api/transactions',json=payload(300000000));critical.raise_for_status();assert critical.json()['decision']=='BLOCK'
     hybrid=client.post('/api/transactions',json=payload(mode='Hybrid'));hybrid.raise_for_status();assert hybrid.json()['mlScore'] is not None and hybrid.json()['aiStatus']=='Available'
-    reviewed=client.post('/api/transactions/'+critical.json()['id']+'/reviews',json={'isFraud':False,'notes':'Synthetic smoke test reviewed independently.'});reviewed.raise_for_status()
-    assert client.get('/api/transactions/'+critical.json()['id']).json()['reviews'][0]['isFraud'] is False
+    # Workflow closure preserves uncertainty instead of producing a legacy legitimate label.
+    legacy=client.post('/api/transactions/'+critical.json()['id']+'/reviews',json={'isFraud':False,'notes':'Legacy review is disabled.'})
+    assert legacy.status_code==409 and legacy.json()['code']=='LEGACY_REVIEW_DISABLED'
+    alert=client.get('/api/alerts',params={'search':critical.json()['id']}).json()['items'][0]
+    def command(name,**fields):
+        nonlocal alert
+        r=client.post('/api/alerts/'+alert['id']+'/'+name,json={'requestId':str(uuid.uuid4()),'expectedVersion':alert['version'],**fields});r.raise_for_status();alert=r.json()['alert']
+    command('claim');command('start');command('close',closureReasonCode='InsufficientEvidence',resolution='Unknown',notes='Synthetic smoke test has insufficient evidence.')
+    assert alert['status']=='Closed' and alert['resolution']=='Unknown'
+    assert client.get('/api/transactions/'+critical.json()['id']).json()['reviews']==[]
     policy=client.get('/api/rules').json();updated=client.put('/api/rules',json=policy);updated.raise_for_status();assert updated.json()['version']==policy['version']+1
     assert client.put('/api/rules',json=policy).status_code==409
     analyst=client.post('/api/auth/login',json={'username':'analyst','password':'Analyst@123456'}).json()
@@ -42,5 +50,5 @@ def main():
     result=client.post('/api/transactions',json=mapped(fixture['transaction']));result.raise_for_status()
     expected=vector(fixture['transaction'],fixture['history'])
     for key,value in expected.items():assert abs(result.json()['features'][key]-value)<1e-8,(key,result.json()['features'][key],value)
-    print(json.dumps({'status':'passed','checks':['authentication','role authorization','validation','rule-only no AI','hybrid AI integration','critical override','idempotency','optimistic policy concurrency','analyst review','CSV export','same-feature comparison','C# Python parity']},indent=2))
+    print(json.dumps({'status':'passed','checks':['authentication','role authorization','validation','rule-only no AI','hybrid AI integration','critical override','idempotency','optimistic policy concurrency','Alert closure Unknown and legacy write disabled','CSV export','same-feature comparison','C# Python parity']},indent=2))
 if __name__=='__main__':main()

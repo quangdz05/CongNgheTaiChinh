@@ -1,0 +1,8 @@
+# Copy this file to the repository root as .env and replace every value.
+# Keep .env private; it is ignored by Git.
+SITE_DOMAIN=demo.example.com
+JWT_SECRET=CHANGE_ME
+PII_SALT=CHANGE_ME
+AI_SERVICE_KEY=CHANGE_ME
+ADMIN_PASSWORD=CHANGE_ME
+ANALYST_PASSWORD=CHANGE_ME

@@ -3,6 +3,8 @@ services:
     build: {context: ., dockerfile: Back-end/Dockerfile}
     environment:
       ASPNETCORE_ENVIRONMENT: Development
+      Proxy__ForwardLimit: 1
+      Proxy__KnownNetworks__0: ${FRAUDSHIELD_SUBNET:-172.30.0.0/24}
       Ai__BaseUrl: http://ai:8001/
       Ai__ApiKey: local-ai-service-key
       AllowedHosts: localhost;127.0.0.1;api
@@ -23,3 +25,8 @@ services:
 volumes:
   database:
   models:
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: ${FRAUDSHIELD_SUBNET:-172.30.0.0/24}

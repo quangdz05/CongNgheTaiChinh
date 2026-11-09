@@ -10,7 +10,7 @@ import { useState } from "react";
 import { login } from "../_services/services";
 type User = { username: string; role: string };
 export function Login({ onLogin }: { onLogin: (u: User) => void }) {
-  const [name, setName] = useState("admin"),
+  const [name, setName] = useState(import.meta.env.DEV ? "admin" : ""),
     [password, setPassword] = useState(""),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
@@ -95,11 +95,13 @@ export function Login({ onLogin }: { onLogin: (u: User) => void }) {
             {busy ? "Đang đăng nhập…" : "Đăng nhập"}
             <ArrowUpRight size={17} />
           </button>
-          <p className="helper">
-            Tài khoản demo Development: admin / Admin@123456
-            <br />
-            Analyst: analyst / Analyst@123456
-          </p>
+          {import.meta.env.DEV && (
+            <p className="helper">
+              Tài khoản demo Development: admin / Admin@123456
+              <br />
+              Analyst: analyst / Analyst@123456
+            </p>
+          )}
         </form>
       </div>
     </div>

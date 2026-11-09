@@ -12,7 +12,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace FraudDetectionService.Api.Controllers;
 
 [ApiController, Route("api/transactions"), Authorize]
-public sealed class TransactionsController(IFraudRepository store, DetectionService detection, AnalyzeTransactionCommandHandler analyze, GetTransactionsQueryHandler list, ReviewTransactionCommandHandler review) : ControllerBase
+public sealed class TransactionsController(IFraudRepository store, DetectionService detection, AnalyzeTransactionCommandHandler analyze, GetTransactionsQueryHandler list) : ControllerBase
 {
     [HttpPost, Authorize(Policy = FraudPermissions.ReviewTransactions)]
     public Task<EvaluationView> Analyze(TransactionRequest req, CancellationToken ct) => analyze.Handle(new(req), ct);
@@ -28,13 +28,7 @@ public sealed class TransactionsController(IFraudRepository store, DetectionServ
         return tx == null ? NotFound() : Ok(await detection.ViewAsync(tx, ct));
     }
     [HttpPost("{id:guid}/reviews"), Authorize(Policy = FraudPermissions.ReviewTransactions)]
-    public async Task<IActionResult> Review(Guid id, ReviewRequest req, CancellationToken ct)
-    {
-        return await review.Handle(new(id, req.IsFraud, req.Notes, User.Identity!.Name!), ct) ? Ok(new
-        {
-            status = "saved"
-        }) : NotFound();
-    }
+    public IActionResult Review(Guid id) => Conflict(new { error = "Review cũ đã ngừng ghi. Hãy xử lý và đóng cảnh báo tại /api/alerts.", code = "LEGACY_REVIEW_DISABLED", traceId = HttpContext.TraceIdentifier, transactionId = id });
     [HttpGet("export")]
     public async Task<IActionResult> Export(CancellationToken ct)
     {

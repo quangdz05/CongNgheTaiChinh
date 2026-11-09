@@ -15,3 +15,6 @@ ai-service/data/*
 !ai-service/data/.gitkeep
 .tools/
 test-results/
+.chart-data-*/
+.pytest_cache/
+pytest-cache-files-*/

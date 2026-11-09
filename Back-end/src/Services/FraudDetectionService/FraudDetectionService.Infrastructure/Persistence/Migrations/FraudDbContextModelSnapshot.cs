@@ -17,6 +17,216 @@ namespace FraudDetectionService.Infrastructure.Persistence.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.9");
 
+            modelBuilder.Entity("FraudDetectionService.Domain.Alert", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("BudgetMinutes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("ClosedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("ClosedByUserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ClosureNotes")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ClosureReasonCode")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("DueAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("EscalatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("EscalationEligibleAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("EscalationReason")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EvidenceJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("HandlingEpisode")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("OriginalEvaluatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("OwnerUserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Priority")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PriorityReason")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Resolution")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("SlaPolicyVersion")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("SlaStartedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SourceType")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("TransactionId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("UpdatedAt")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("WaitingReason")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("WaitingType")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("WaitingUntil")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClosedByUserId");
+
+                    b.HasIndex("TransactionId")
+                        .IsUnique();
+
+                    b.HasIndex("Status", "DueAt");
+
+                    b.HasIndex("OwnerUserId", "Status", "DueAt");
+
+                    b.HasIndex("Status", "Priority", "DueAt", "Id");
+
+                    b.ToTable("Alerts", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Alert_Owner", "(Status = 'New' AND OwnerUserId IS NULL) OR (Status = 'Escalated') OR (Status IN ('Assigned','InProgress','Waiting','Closed') AND OwnerUserId IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_Alert_Priority", "Priority IN ('P1','P2','P3')");
+
+                            t.HasCheckConstraint("CK_Alert_State", "Status IN ('New','Assigned','InProgress','Waiting','Escalated','Closed')");
+                        });
+                });
+
+            modelBuilder.Entity("FraudDetectionService.Domain.AlertCommandReceipt", b =>
+                {
+                    b.Property<Guid>("AlertId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ActorUserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("At")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Command")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PayloadHash")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ResultJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("AlertId", "RequestId");
+
+                    b.HasIndex("ActorUserId");
+
+                    b.ToTable("AlertCommandReceipts");
+                });
+
+            modelBuilder.Entity("FraudDetectionService.Domain.AlertEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("ActorUserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("AfterJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid>("AlertId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("At")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("BeforeJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("BeforeVersion")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("HandlingEpisode")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("RequestId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("Version")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorUserId");
+
+                    b.HasIndex("AlertId", "HandlingEpisode")
+                        .IsUnique()
+                        .HasFilter("Type = 'Escalated'");
+
+                    b.HasIndex("AlertId", "Version")
+                        .IsUnique();
+
+                    b.ToTable("AlertEvents");
+                });
+
             modelBuilder.Entity("FraudDetectionService.Domain.AnalystReview", b =>
                 {
                     b.Property<Guid>("Id")
@@ -42,7 +252,7 @@ namespace FraudDetectionService.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TransactionId");
+                    b.HasIndex("TransactionId", "ReviewedAt");
 
                     b.ToTable("Reviews");
                 });
@@ -252,9 +462,61 @@ namespace FraudDetectionService.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("Timestamp");
 
+                    b.HasIndex("DeviceHash", "Timestamp");
+
+                    b.HasIndex("IpHash", "Timestamp");
+
                     b.HasIndex("UserId", "Timestamp");
 
                     b.ToTable("Transactions");
+                });
+
+            modelBuilder.Entity("FraudDetectionService.Domain.Alert", b =>
+                {
+                    b.HasOne("FraudDetectionService.Domain.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("ClosedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("FraudDetectionService.Domain.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("OwnerUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("FraudDetectionService.Domain.Evaluation", null)
+                        .WithOne()
+                        .HasForeignKey("FraudDetectionService.Domain.Alert", "TransactionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("FraudDetectionService.Domain.AlertCommandReceipt", b =>
+                {
+                    b.HasOne("FraudDetectionService.Domain.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("ActorUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("FraudDetectionService.Domain.Alert", null)
+                        .WithMany()
+                        .HasForeignKey("AlertId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("FraudDetectionService.Domain.AlertEvent", b =>
+                {
+                    b.HasOne("FraudDetectionService.Domain.AppUser", null)
+                        .WithMany()
+                        .HasForeignKey("ActorUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("FraudDetectionService.Domain.Alert", null)
+                        .WithMany()
+                        .HasForeignKey("AlertId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("FraudDetectionService.Domain.AnalystReview", b =>

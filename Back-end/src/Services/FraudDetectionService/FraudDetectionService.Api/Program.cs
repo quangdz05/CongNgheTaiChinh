@@ -17,10 +17,20 @@ using FraudDetectionService.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.AspNetCore.HttpOverrides;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.WebHost.ConfigureKestrel(o => o.Limits.MaxRequestBodySize = 64 * 1024);
 var dev = builder.Environment.IsDevelopment();
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.ForwardLimit = Math.Clamp(builder.Configuration.GetValue("Proxy:ForwardLimit", 1), 1, 5);
+    foreach (var address in builder.Configuration.GetSection("Proxy:KnownProxies").Get<string[]>() ?? [])
+        options.KnownProxies.Add(System.Net.IPAddress.Parse(address));
+    foreach (var network in builder.Configuration.GetSection("Proxy:KnownNetworks").Get<string[]>() ?? [])
+        options.KnownIPNetworks.Add(System.Net.IPNetwork.Parse(network));
+});
 string Secret(string name, string fallback)
 {
     var value = builder.Configuration[name];
@@ -41,6 +51,10 @@ if (string.IsNullOrWhiteSpace(aiKey)) throw new InvalidOperationException("Ai:Ap
 Directory.CreateDirectory("data");
 builder.Services.AddDbContext<FraudDbContext>(o => o.UseSqlite(builder.Configuration.GetConnectionString("FraudShield")));
 builder.Services.AddScoped<IFraudRepository, FraudRepository>();
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddScoped<IAlertRepository, AlertRepository>();
+builder.Services.AddScoped<AlertWorkflowService>();
+builder.Services.AddHostedService<FraudDetectionService.Api.Services.AlertSlaWorker>();
 builder.Services.AddSingleton<IPiiHasher>(new PiiHasher(piiSecret));
 builder.Services.AddSingleton<IPasswordVerifier, PasswordVerifier>();
 builder.Services.AddScoped<LoginCommandHandler>();
@@ -75,17 +89,20 @@ app.Use(async (ctx, next) =>
     }
     catch (Exception e) when (!ctx.Response.HasStarted && e is not OperationCanceledException)
     {
-        var status = e is ConflictException or DbUpdateConcurrencyException ? 409 : e is ArgumentException or FluentValidation.ValidationException ? 400 : 500;
+        var status = e is AlertException alertError ? alertError.Status : e is ConflictException or DbUpdateConcurrencyException ? 409 : e is ArgumentException or FluentValidation.ValidationException ? 400 : 500;
         if (status == 500)
             app.Logger.LogError(e, "Request failed {TraceId}", ctx.TraceIdentifier);
         ctx.Response.StatusCode = status;
+        if (status == 503) ctx.Response.Headers.RetryAfter = "1";
         await ctx.Response.WriteAsJsonAsync(new
         {
             error = status == 500 ? "Không thể hoàn tất yêu cầu." : e.Message,
+            code = e is AlertException coded ? coded.Code : status == 409 ? "CONFLICT" : status == 400 ? "VALIDATION_ERROR" : "SERVER_ERROR",
             traceId = ctx.TraceIdentifier
         });
     }
 });
+app.UseForwardedHeaders();
 app.UseRateLimiter();
 var hasWebRoot = Directory.Exists(Path.Combine(app.Environment.ContentRootPath, "wwwroot"));
 if (hasWebRoot) { app.UseDefaultFiles(); app.UseStaticFiles(); }
@@ -115,15 +132,22 @@ using (var scope = app.Services.CreateScope())
             PasswordHash = Passwords.Hash(password),
             Role = "Admin"
         });
-        if (dev)
+        var analystPassword = builder.Configuration["Security:AnalystPassword"];
+        if (dev || !string.IsNullOrWhiteSpace(analystPassword))
+        {
+            analystPassword ??= "Analyst@123456";
+            if (analystPassword.Length < 12)
+                throw new InvalidOperationException("Analyst password must contain at least 12 characters.");
             db.Users.Add(new()
             {
                 Username = "analyst",
-                PasswordHash = Passwords.Hash("Analyst@123456"),
+                PasswordHash = Passwords.Hash(analystPassword),
                 Role = "Analyst"
             });
+        }
     }
     await db.SaveChangesAsync();
+    await AlertBackfill.RunAsync(db, TimeProvider.System);
 }
 app.Run();
 

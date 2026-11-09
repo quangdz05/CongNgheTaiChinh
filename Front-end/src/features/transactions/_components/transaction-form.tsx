@@ -1,5 +1,5 @@
 import { LoaderCircle, ScanLine, X } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { type Evaluation } from "../../../shared/services/api";
 import { transactionConstraints } from "../_schema/schema";
 import { analyzeTransaction } from "../_services/services";
@@ -15,6 +15,7 @@ export function TransactionForm({
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [amount, setAmount] = useState(150000);
+  const submission = useRef<{ body: string; id: string } | null>(null);
   return (
     <div className="overlay">
       <section className="modal">
@@ -38,18 +39,25 @@ export function TransactionForm({
             const f = new FormData(e.currentTarget);
             setBusy(true);
             setError("");
+            const request = {
+              userId: f.get("userId"),
+              amount,
+              currency: "VND",
+              merchant: f.get("merchant"),
+              category: f.get("category"),
+              country: f.get("country"),
+              deviceId: f.get("device"),
+              ipAddress: f.get("ip"),
+              mode,
+            };
+            const body = JSON.stringify(request);
+            if (submission.current?.body !== body)
+              submission.current = { body, id: crypto.randomUUID() };
             try {
               onSuccess(
                 await analyzeTransaction({
-                  userId: f.get("userId"),
-                  amount,
-                  currency: "VND",
-                  merchant: f.get("merchant"),
-                  category: f.get("category"),
-                  country: f.get("country"),
-                  deviceId: f.get("device"),
-                  ipAddress: f.get("ip"),
-                  mode,
+                  ...request,
+                  id: submission.current.id,
                 }),
               );
             } catch (e) {

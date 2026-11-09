@@ -13,6 +13,9 @@ public sealed class FraudDbContext(DbContextOptions<FraudDbContext> options) : D
     public DbSet<RulePolicy> Policies => Set<RulePolicy>();
     public DbSet<AppUser> Users => Set<AppUser>();
     public DbSet<AuditEntry> Audits => Set<AuditEntry>();
+    public DbSet<Alert> Alerts => Set<Alert>();
+    public DbSet<AlertEvent> AlertEvents => Set<AlertEvent>();
+    public DbSet<AlertCommandReceipt> AlertCommandReceipts => Set<AlertCommandReceipt>();
     protected override void ConfigureConventions(ModelConfigurationBuilder builder) => builder.Properties<DateTimeOffset>().HaveConversion<UtcTicksConverter>();
     protected override void OnModelCreating(ModelBuilder b) => b.ApplyConfigurationsFromAssembly(typeof(FraudDbContext).Assembly);
 }

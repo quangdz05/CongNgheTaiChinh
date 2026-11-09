@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { Badge, Empty } from "../../../components/common";
-import { money, percent, type Evaluation } from "../../../shared/services/api";
+import {
+  money,
+  percent,
+  type TransactionSummary,
+} from "../../../shared/services/api";
 import { compareTransaction } from "../_services/services";
 export function AiPanel({
   status,
@@ -9,7 +13,7 @@ export function AiPanel({
 }: {
   status: string;
   metrics: any;
-  rows: Evaluation[];
+  rows: TransactionSummary[];
 }) {
   const [id, setId] = useState(""),
     [comparison, setComparison] = useState<any>(null),
@@ -80,7 +84,11 @@ export function AiPanel({
         <select
           aria-label="Giao dịch để so sánh"
           value={id}
-          onChange={(e) => setId(e.target.value)}
+          disabled={busy}
+          onChange={(e) => {
+            setId(e.target.value);
+            setComparison(null);
+          }}
         >
           <option value="">Chọn giao dịch</option>
           {rows.map((t) => (
