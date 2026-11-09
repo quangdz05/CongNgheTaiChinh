@@ -3,6 +3,13 @@ $root = Split-Path -Parent $PSScriptRoot
 $frontend = Join-Path $root 'Front-end'
 $dist = Join-Path $frontend 'dist'
 $wwwroot = Join-Path $root 'test-results\public-demo\app\wwwroot'
+$demoPath = [IO.Path]::GetFullPath((Join-Path $root 'test-results\public-demo'))
+$runtimePath = Join-Path $demoPath 'runtime.json'
+if (Test-Path -LiteralPath $runtimePath) {
+    $runtime = Get-Content -LiteralPath $runtimePath -Raw | ConvertFrom-Json
+    if ($runtime.AppPath) { $wwwroot = Join-Path $runtime.AppPath 'wwwroot' }
+}
+if (-not [IO.Path]::GetFullPath($wwwroot).StartsWith($demoPath + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { throw 'Web root is outside the demo workspace.' }
 if (-not (Test-Path -LiteralPath $wwwroot)) {
     throw 'The temporary demo has not been prepared. Missing test-results/public-demo/app/wwwroot.'
 }

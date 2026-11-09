@@ -10,7 +10,9 @@ Ngày kiểm tra: 30/10/2026. Môi trường Windows, .NET SDK 10.0.400, Node 20
 - HTTP Alert dùng API/SQLite tạm: claim race hai tài khoản một thắng, replay receipt, fake actor/owner bị từ chối, stale version, Waiting/Unknown/evidence/reopen, filter/stats/legacy 409 pass.
 - Edge headless trên dist và proxy local: login/claim/start/note/close Unknown, refresh giữ draft, escape script, offline/reconnect, desktop/mobile pass; ảnh/log cục bộ trong `test-results/alerts/`.
 - Test migration nâng schema cũ và backfill rerun không reset SLA, giữ review mâu thuẫn; test trigger gây lỗi chứng minh rollback transaction/evaluation/Alert hoặc owner/event/receipt/audit.
-- Chưa deploy thay đổi Alert lên môi trường public; chưa chạy migration/backfill trên DB demo. Chưa đo mục tiêu p95 100.000 Alert hoặc SLA worker với backlog lớn; không có kết luận QA độc lập. Chi tiết truy vết và giới hạn ở `docs/team/02-implementation.md`.
+- Đã deploy lên demo public sau yêu cầu tiếp theo của người dùng: Release build, backup SQLite integrity=ok, migration và 9 Alert backfill. Hash dữ liệu gốc giữ nguyên 36 Transactions/36 Evaluations/2 Users/1 Policy và Reviews/Audits cũ. Localhost và HTTPS kiểm tra health/asset/login hai vai trò/Alert/audit permission/AI Ready đều đạt; không smoke ghi dữ liệu public.
+- Windows khóa thư mục app khi đổi tên: đã khôi phục bằng chạy thư mục phiên bản mới, giữ tunnel/AI/DB; runtime ghi AppPath và script khởi động/redeploy dùng đường dẫn này. Kết quả cục bộ ở `test-results/public-demo/alert-deployment-results.json`.
+- Chưa đo mục tiêu p95 100.000 Alert hoặc SLA worker với backlog lớn; không có kết luận QA độc lập. Chi tiết truy vết và giới hạn ở `docs/team/02-implementation.md`.
 
 ## Cập nhật ngày 06/11/2026
 

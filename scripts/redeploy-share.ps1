@@ -1,11 +1,12 @@
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $demo = [IO.Path]::GetFullPath((Join-Path $root 'test-results\public-demo'))
-$app = Join-Path $demo 'app'
+$runtimePath = Join-Path $demo 'runtime.json'
+$runtime = Get-Content -LiteralPath $runtimePath -Raw | ConvertFrom-Json
+$app = if ($runtime.AppPath) { [IO.Path]::GetFullPath($runtime.AppPath) } else { Join-Path $demo 'app' }
 $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
 $stage = Join-Path $demo "app-staging-$stamp"
-$previous = Join-Path $demo "app-previous-$stamp"
-$runtimePath = Join-Path $demo 'runtime.json'
+$previous = $app
 $python = Join-Path $root '.venv\Scripts\python.exe'
 
 function Assert-DemoPath([string]$path) {
@@ -15,8 +16,7 @@ function Assert-DemoPath([string]$path) {
     }
 }
 foreach ($path in @($app, $stage, $previous)) { Assert-DemoPath $path }
-if ((Test-Path -LiteralPath $stage) -or (Test-Path -LiteralPath $previous)) { throw 'Deployment directory already exists. Retry after one second.' }
-$runtime = Get-Content -LiteralPath $runtimePath -Raw | ConvertFrom-Json
+if (Test-Path -LiteralPath $stage) { throw 'Deployment directory already exists. Retry after one second.' }
 $apiProcess = Get-CimInstance Win32_Process -Filter "ProcessId = $($runtime.ApiPid)"
 if (-not $apiProcess -or -not $apiProcess.CommandLine.Contains('FraudDetectionService.Api.dll --urls http://127.0.0.1:18080')) {
     throw 'The recorded API process does not match this demo. Start the demo before redeploying.'
@@ -58,8 +58,9 @@ $env:Security__AnalystPassword = $secrets.AnalystPassword
 $env:Ai__BaseUrl = 'http://127.0.0.1:18001/'
 $env:Ai__ApiKey = $secrets.AiKey
 
-function Start-DemoApi {
-    $started = Start-Process -FilePath (Get-Command dotnet).Source -ArgumentList @('FraudDetectionService.Api.dll','--urls','http://127.0.0.1:18080') -WorkingDirectory $app -WindowStyle Hidden -RedirectStandardOutput (Join-Path $demo 'api.out.log') -RedirectStandardError (Join-Path $demo 'api.err.log') -PassThru
+function Start-DemoApi([string]$applicationPath) {
+    Assert-DemoPath $applicationPath
+    $started = Start-Process -FilePath (Get-Command dotnet).Source -ArgumentList @('FraudDetectionService.Api.dll','--urls','http://127.0.0.1:18080') -WorkingDirectory $applicationPath -WindowStyle Hidden -RedirectStandardOutput (Join-Path $demo "api-$stamp.out.log") -RedirectStandardError (Join-Path $demo "api-$stamp.err.log") -PassThru
     for ($i = 0; $i -lt 40; $i++) {
         if ($started.HasExited) { throw 'API exited during startup. Inspect api.out.log and api.err.log.' }
         try {
@@ -72,25 +73,22 @@ function Start-DemoApi {
     throw 'API did not become healthy.'
 }
 
+# Activate a version directory without renaming the old working directory on Windows.
 # The AI service and Cloudflare tunnel keep running, preserving the current URL.
 Stop-Process -Id $apiProcess.ProcessId -Force
 Wait-Process -Id $apiProcess.ProcessId -Timeout 15 -ErrorAction SilentlyContinue
-Move-Item -LiteralPath $app -Destination $previous
 try {
-    Move-Item -LiteralPath $stage -Destination $app
-    $api = Start-DemoApi
+    $api = Start-DemoApi $stage
 } catch {
     $failure = $_
-    $failed = Join-Path $demo "app-failed-$stamp"
-    Assert-DemoPath $failed
-    if (Test-Path -LiteralPath $app) { Move-Item -LiteralPath $app -Destination $failed }
-    Move-Item -LiteralPath $previous -Destination $app
-    $api = Start-DemoApi
+    $api = Start-DemoApi $previous
     $runtime.ApiPid = $api.Id
+    $runtime | Add-Member -NotePropertyName AppPath -NotePropertyValue $previous -Force
     $runtime | ConvertTo-Json | Set-Content -LiteralPath $runtimePath -Encoding utf8
     throw "Deployment failed; previous app restored. $failure"
 }
 $runtime.ApiPid = $api.Id
+$runtime | Add-Member -NotePropertyName AppPath -NotePropertyValue $stage -Force
 $runtime | Add-Member -NotePropertyName RedeployedAt -NotePropertyValue (Get-Date).ToString('o') -Force
 $runtime | ConvertTo-Json | Set-Content -LiteralPath $runtimePath -Encoding utf8
 Write-Output "Deployment healthy. Backup: $backup"

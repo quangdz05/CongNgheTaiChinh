@@ -2,7 +2,7 @@
 
 ## Thiết kế kỹ thuật
 
-Người dùng đã chọn **Dùng toàn bộ mặc định Q1–Q8** ngày 09/11/2026. Đây là cơ sở triển khai bản BA 0.1; không mở rộng sang chuyển tiền, SMS hoặc mô hình AI. Chưa deploy, commit hoặc push.
+Người dùng đã chọn **Dùng toàn bộ mặc định Q1–Q8** ngày 09/11/2026. Đây là cơ sở triển khai bản BA 0.1; không mở rộng sang chuyển tiền, SMS hoặc mô hình AI. Theo yêu cầu tiếp theo cùng ngày, đã tạo commit code `3dde305` và deploy lên demo tạm; trạng thái push phải đối chiếu remote GitHub.
 
 - Domain: Alert riêng, sáu trạng thái, priority/SLA, owner, resolution; event append-only và receipt chống lặp lệnh.
 - Application: workflow thuần với kiểm quyền/chuyển trạng thái/validation; port repository riêng; TimeProvider để kiểm thử clock.
@@ -144,3 +144,12 @@ Các lỗi phát hiện qua tự kiểm, không gán là kết quả subagent Te
 - DEV-03: action group gây tràn ngang mobile → wrap và giới hạn dialog theo viewport; browser kiểm tra scrollWidth và ảnh mobile.
 - DEV-04: thông báo lỗi mạng còn sau tải thành công → tách syncError với lỗi command, chỉ xóa lỗi đồng bộ khi tải thành công; không xóa cảnh báo kết quả lệnh chưa rõ.
 - DEV-05: phần tử evidence null có thể gây lỗi 500 → kiểm tra null và từ chối 400, strict JSON cho cả evidence; bổ sung C#/HTTP regression.
+
+## Kết quả deploy demo ngày 09/11/2026
+
+- Người dùng yêu cầu push vào `quangdz05/CongNgheTaiChinh` và deploy. Commit ứng dụng: `3dde305`.
+- Frontend build và backend publish Release thành công. SQLite backup `fraudshield-20261109-153714.db` có integrity_check=ok; snapshot/count/hash gốc lưu trong log gitignored.
+- Đã áp migration AddAlertWorkflow, backfill 9 Alert ImportedLegacy/New/Unknown. Hash giữ nguyên toàn bộ 36 Transactions, 36 Evaluations, 0 Reviews, 2 Users, 1 Policy và 0 Audits tại lúc đối soát; FK/integrity đều đạt.
+- Kiểm tra localhost:18080 và HTTPS tunnel: health, asset SHA-256 khớp build, login Admin/Analyst, queue/stats/detail, phân quyền audit, dashboard và AI Ready đều đạt. Chỉ đăng nhập và đọc dữ liệu, không smoke ghi giao dịch/claim vào DB public.
+- Lần đổi tên thư mục app cũ bị khóa working directory trên Windows sau khi dừng API. Đã chạy bản mới trực tiếp từ thư mục phiên bản và ghi AppPath trong runtime; giữ nguyên DB, AI và tunnel. Script redeploy/start/frontend đã sửa để dùng AppPath và không đổi tên/xóa thư mục đang được dùng.
+- Log kết quả tại `test-results/public-demo/alert-deployment-results.json`; backup và secrets không đưa vào Git. Link là Quick Tunnel, phụ thuộc máy và tiến trình đang chạy.

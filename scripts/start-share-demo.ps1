@@ -2,6 +2,13 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $demo = Join-Path $root 'test-results\public-demo'
 $app = Join-Path $demo 'app'
+$runtimePath = Join-Path $demo 'runtime.json'
+if (Test-Path -LiteralPath $runtimePath) {
+    $lastRuntime = Get-Content -LiteralPath $runtimePath -Raw | ConvertFrom-Json
+    if ($lastRuntime.AppPath) { $app = [IO.Path]::GetFullPath($lastRuntime.AppPath) }
+}
+$demoPrefix = [IO.Path]::GetFullPath($demo).TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
+if (-not [IO.Path]::GetFullPath($app).StartsWith($demoPrefix, [StringComparison]::OrdinalIgnoreCase)) { throw 'Application directory is outside the demo workspace.' }
 $secretsPath = Join-Path $demo 'secrets.json'
 $cloudflared = Join-Path $root '.tools\cloudflared.exe'
 $python = Join-Path $root '.venv\Scripts\python.exe'
@@ -53,7 +60,7 @@ if (-not $healthy) { throw 'API did not become healthy. See test-results/public-
 $tunnelLog = Join-Path $demo 'tunnel.err.log'
 if (Test-Path -LiteralPath $tunnelLog) { Clear-Content -LiteralPath $tunnelLog }
 $tunnel = Start-Process -FilePath $cloudflared -ArgumentList @('tunnel','--url','http://127.0.0.1:18080') -WorkingDirectory $root -WindowStyle Hidden -RedirectStandardOutput (Join-Path $demo 'tunnel.out.log') -RedirectStandardError $tunnelLog -PassThru
-$runtime = @{ AiLauncherPid = $ai.Id; ApiPid = $api.Id; TunnelPid = $tunnel.Id; StartedAt = (Get-Date).ToString('o') }
+$runtime = @{ AiLauncherPid = $ai.Id; ApiPid = $api.Id; TunnelPid = $tunnel.Id; AppPath = $app; StartedAt = (Get-Date).ToString('o') }
 $runtime | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $demo 'runtime.json') -Encoding utf8
 
 $url = $null

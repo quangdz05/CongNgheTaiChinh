@@ -10,11 +10,11 @@ Mở Command Prompt ở thư mục gốc dự án và chạy:
 scripts\start-share-demo.cmd
 ```
 
-Script dùng bản đã đóng gói trong `test-results/public-demo/app`, mô hình tại `ai-service/artifacts/model.joblib`, môi trường Python `.venv` và `cloudflared.exe` trong `.tools`. Nó giữ database và mật khẩu cũ, rồi in link HTTPS mới. Nếu đã sửa mã nguồn sau lần đóng gói, cần build và publish lại trước khi chạy script.
+Script dùng thư mục ứng dụng đã ghi trong `test-results/public-demo/runtime.json` (AppPath; bản cũ mặc định là `app`), mô hình tại `ai-service/artifacts/model.joblib`, môi trường Python `.venv` và `cloudflared.exe` trong `.tools`. Nó giữ database và mật khẩu cũ, rồi in link HTTPS mới. Nếu đã sửa mã nguồn sau lần đóng gói, cần build và publish lại trước khi chạy script.
 
 Sau mỗi lần chỉ sửa frontend trong `Front-end/src`, chạy `scripts\redeploy-share-fe.cmd` từ thư mục gốc. Script build React và chép các tệp mới vào API đang chạy, chép `index.html` sau cùng. Link, API, AI và SQLite giữ nguyên; người đang mở trang nhấn `Ctrl+F5` để tải giao diện mới.
 
-Khi sửa cả backend, chạy `scripts\redeploy-share.cmd` lúc bản demo đang chạy. Script build/publish vào thư mục tạm, sao lưu SQLite bằng backup API và kiểm tra bản sao trước khi dừng API. Nó giữ AI và tunnel, thay thư mục ứng dụng rồi khởi động lại API trên cùng cổng, nên giữ được link hiện tại. Bản cũ nằm trong `test-results/public-demo/app-previous-*`; bản sao DB nằm trong `backups/`. Nếu API mới không khởi động được, script khôi phục thư mục ứng dụng cũ. Trong thời gian API khởi động lại, người xem có thể gặp lỗi kết nối ngắn hạn.
+Khi sửa cả backend, chạy `scripts\redeploy-share.cmd` lúc bản demo đang chạy. Script build/publish vào thư mục phiên bản `app-staging-*`, sao lưu SQLite bằng backup API và kiểm tra bản sao trước khi dừng API. Nó giữ AI và tunnel, chạy API từ thư mục phiên bản mới trên cùng cổng và cập nhật AppPath, nên giữ được link hiện tại. Không đổi tên/xóa thư mục phiên bản đang dùng để tránh khóa working directory trên Windows. Bản cũ vẫn giữ tại AppPath trước đó; bản sao DB nằm trong `backups/`. Nếu API mới không khởi động được, script chạy lại ứng dụng cũ. Migration/backfill có thể đã thêm dữ liệu mới, nên rollback ứng dụng không tự restore hoặc xóa DB. Trong thời gian API khởi động lại, người xem có thể gặp lỗi kết nối ngắn hạn.
 
 Để ngắt link và dừng API, AI:
 
@@ -26,6 +26,6 @@ Chỉ chia sẻ tài khoản `analyst` và mật khẩu tương ứng trong `tes
 
 ## Dữ liệu và giới hạn
 
-Database của link tạm tách biệt với database Windows tại `Back-end/.../FraudDetectionService.Api/data/fraudshield.db` và với Docker volume. Bản demo đã có 36 giao dịch mô phỏng để người xem thấy dashboard. Người đăng nhập có thể tạo thêm dữ liệu và ghi review; mọi thay đổi đều được lưu vào cùng database demo. Không có tài khoản riêng cho từng người.
+Database của link tạm tách biệt với database Windows tại `Back-end/.../FraudDetectionService.Api/data/fraudshield.db`, demo local Alert ở cổng 18081 và Docker volume. Ngày 09/11/2026, bản public giữ 36 giao dịch mô phỏng và tạo 9 Alert New/Unknown từ REVIEW/BLOCK; không tự gán nhãn hợp lệ/gian lận. Người đăng nhập có thể tạo dữ liệu và xử lý Alert theo quyền; POST review boolean cũ đã ngừng ghi. Không có tài khoản riêng cho từng người.
 
 Quick Tunnel không cần VPS, tên miền hoặc tài khoản Cloudflare. Bất kỳ ai có link và thông tin đăng nhập hợp lệ đều có thể dùng ứng dụng. Nếu cần giới hạn tới email người xem, Cloudflare hỗ trợ `--allowed-mail`, nhưng phải tạo lại tunnel với danh sách email. Quick Tunnel dành cho thử nghiệm, không có bảo đảm thời gian hoạt động và hostname sẽ đổi khi tạo lại. Muốn website chạy liên tục với địa chỉ ổn định, xem `docs/DEPLOY_PUBLIC.md`.
