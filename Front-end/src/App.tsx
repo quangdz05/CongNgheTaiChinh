@@ -414,16 +414,23 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
             </div>
           </div>
           {page === "transactions" && (
-            <details className="panel">
-              <summary>Dữ liệu mô phỏng</summary>
-              <p className="helper">
-                Thêm 18 giao dịch mô phỏng, phân tích bằng luật kết hợp AI (Hybrid),
-                vào dữ liệu hiện tại. Giao dịch có
-                kết quả REVIEW hoặc BLOCK sẽ tạo cảnh báo. Mỗi lần bấm tạo thêm
-                một bộ mới.
-              </p>
-              <div className="actions">
-                <button className="button" onClick={demo} disabled={busy}>
+            <details className="panel demo-panel">
+              <summary className="demo-summary">
+                <span className="demo-icon"><Play size={19} aria-hidden="true" /></span>
+                <span className="demo-heading">
+                  <strong>Dữ liệu mô phỏng</strong>
+                  <span>Chuẩn bị các tình huống mẫu để khám phá hệ thống</span>
+                </span>
+                <span className="demo-count">18 giao dịch</span>
+                <ChevronRight className="demo-chevron" size={18} aria-hidden="true" />
+              </summary>
+              <div className="demo-body">
+                <div className="demo-description">
+                  <span className="demo-label">LUẬT KẾT HỢP AI · HYBRID</span>
+                  <p>Gồm giao dịch thông thường, giá trị cao, chuỗi liên tiếp và nhiều tài khoản dùng chung thiết bị.</p>
+                  <small>Mỗi lần tạo thêm 18 giao dịch. Kết quả REVIEW hoặc BLOCK sẽ tạo cảnh báo.</small>
+                </div>
+                <button className="button primary demo-create" onClick={demo} disabled={busy}>
                   {busy ? (
                     <LoaderCircle size={16} className="spin" />
                   ) : (
