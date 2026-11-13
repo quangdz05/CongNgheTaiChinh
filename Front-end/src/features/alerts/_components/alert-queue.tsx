@@ -82,7 +82,7 @@ function EventChanges({ entry }: { entry: AlertEvent }) {
     ownerUserId: "Người phụ trách",
     priority: "Ưu tiên",
     resolution: "Kết luận",
-    dueAt: "Hạn SLA",
+    dueAt: "Hạn xử lí",
     waitingUntil: "Hẹn tiếp tục",
     closureNotes: "Căn cứ đóng",
     escalationReason: "Lý do chuyển cấp",
@@ -340,7 +340,7 @@ export function AlertQueue({
               <th>ƯU TIÊN</th>
               <th>TRẠNG THÁI</th>
               <th>PHỤ TRÁCH</th>
-              <th>HẠN SLA</th>
+              <th>HẠN XỬ LÍ</th>
               <th>KẾT LUẬN</th>
             </tr>
           </thead>
@@ -713,10 +713,10 @@ function AlertInspector({
             </span>
           </div>
           <p className="helper">
-            Hạn đóng: {displayDate(a.dueAt)} · SLA liên tục 24/7
+            Hạn xử lí: {displayDate(a.dueAt)} · Tính liên tục 24/7
             <br />
             {a.status === "Closed"
-              ? `Đóng: ${displayDate(a.closedAt!)} · ${a.closedWithinSla ? "Trong SLA" : "Trễ SLA"}`
+              ? `Đóng: ${displayDate(a.closedAt!)} · ${a.closedWithinSla ? "Đúng hạn xử lí" : "Quá hạn xử lí"}`
               : new Date(a.dueAt).getTime() <=
                   new Date(detail.serverNow).getTime() +
                     Math.max(0, now - lastSync)
@@ -861,7 +861,8 @@ function AlertInspector({
                     />
                   </label>
                   <p className="helper">
-                    Waiting vẫn tính SLA. Hết hẹn hoặc SLA sẽ chuyển cấp.
+                    Thời gian chờ vẫn tính vào hạn xử lí. Hết hẹn chờ hoặc quá
+                    hạn xử lí sẽ chuyển cấp.
                   </p>
                 </>
               )}
