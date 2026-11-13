@@ -30,6 +30,8 @@ public sealed class Evaluation
         get; set;
     }
     public string MatchesJson { get; set; } = "[]";
+    public string AnalysisStrategy { get; set; } = "LegacyScore";
+    public string RiskFindingsJson { get; set; } = "[]";
     public string FeaturesJson { get; set; } = "{}";
     public string PolicyJson { get; set; } = "{}";
     public double LatencyMs

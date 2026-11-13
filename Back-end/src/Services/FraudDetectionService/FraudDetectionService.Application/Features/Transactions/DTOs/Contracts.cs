@@ -22,7 +22,8 @@ public sealed record FeatureVector(double Amount, double TransactionCount1h, dou
 }
 public sealed record EvaluationView(Guid Id, string UserId, decimal Amount, string Currency,
     string Merchant, string Category, string Country, string DeviceHash, string IpHash, DateTimeOffset Timestamp,
-    string Mode, double RuleScore, double? MlScore, double FinalScore, string Decision, string AiStatus,
+    string Mode, double? RuleScore, double? MlScore, double? FinalScore, string Decision, string AiStatus,
     string? ModelVersion, int RuleVersion, double LatencyMs, IReadOnlyList<RuleMatch> Matches,
-    FeatureVector Features, IReadOnlyList<AnalystReview> Reviews);
+    FeatureVector Features, IReadOnlyList<AnalystReview> Reviews, string AnalysisStrategy,
+    IReadOnlyList<RiskFinding> RiskFindings);
 public record AiPrediction(double Score, string ModelVersion, string FeatureSchemaVersion);

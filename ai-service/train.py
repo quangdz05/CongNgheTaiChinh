@@ -37,7 +37,7 @@ def metrics(y,p,threshold):
     return dict(precision=float(precision_score(y,pred,zero_division=0)),recall=float(recall_score(y,pred,zero_division=0)),f1=float(f1_score(y,pred,zero_division=0)),prAuc=float(average_precision_score(y,p)),rocAuc=float(roc_auc_score(y,p)),confusionMatrix=confusion_matrix(y,pred,labels=[0,1]).tolist(),threshold=float(threshold))
 
 def main():
-    parser=argparse.ArgumentParser();parser.add_argument('--csv',type=Path);parser.add_argument('--synthetic',action='store_true');parser.add_argument('--samples',type=int,default=8000);parser.add_argument('--seed',type=int,default=42);args=parser.parse_args()
+    parser=argparse.ArgumentParser();parser.add_argument('--csv',type=Path);parser.add_argument('--synthetic',action='store_true');parser.add_argument('--samples',type=int,default=8000);parser.add_argument('--seed',type=int,default=42);parser.add_argument('--output-dir',type=Path,default=ROOT/'artifacts');args=parser.parse_args()
     if bool(args.csv)==bool(args.synthetic):parser.error('Choose exactly one of --csv FILE or --synthetic')
     if args.synthetic and args.samples<1000:parser.error('Use at least 1000 synthetic samples')
     rows=load_csv(args.csv) if args.csv else synthetic(args.samples,args.seed)
@@ -56,12 +56,12 @@ def main():
     hybrid=.5*rule+.5*prob;hybrid=np.where(rule>=1,np.maximum(hybrid,.95),hybrid)
     # For binary BLOCK comparison, strong rule override is retained.
     hybrid_block=(hybrid>=.8)|(rule>=.8)
-    version=datetime.now(timezone.utc).strftime('hgb-%Y%m%dT%H%M%SZ');art=ROOT/'artifacts';art.mkdir(exist_ok=True)
+    version=datetime.now(timezone.utc).strftime('hgb-%Y%m%dT%H%M%SZ');art=args.output_dir;art.mkdir(parents=True,exist_ok=True)
     report=dict(modelVersion=version,featureSchemaVersion=SCHEMA,featureNames=NAMES,datasetSource='csv' if args.csv else 'synthetic',datasetSha256=hashlib.sha256(json.dumps(rows,sort_keys=True).encode()).hexdigest(),trainedAt=datetime.now(timezone.utc).isoformat(),seed=args.seed,split=dict(train=a,validation=b-a,test=len(rows)-b,method='chronological 60/20/20; equal timestamps kept together'),fraudRate=float(y.mean()),validationMetrics=metrics(y[a:b],val,threshold),testMetrics=metrics(y[b:],prob,threshold),rulesBaseline=metrics(y[b:],rule,.8),hybridBlockMetrics=metrics(y[b:],hybrid,.8),hybridBlockOverride=dict(precision=float(precision_score(y[b:],hybrid_block,zero_division=0)),recall=float(recall_score(y[b:],hybrid_block,zero_division=0)),f1=float(f1_score(y[b:],hybrid_block,zero_division=0)),confusionMatrix=confusion_matrix(y[b:],hybrid_block).tolist()),limitations=['Synthetic results do not demonstrate real-world fraud performance.' if args.synthetic else 'CSV labels, provenance and representativeness require independent verification.','Model score is not a calibrated probability.','Stored historical features include only earlier transactions, never labels.','ML threshold selected on validation; C# hybrid uses separately configured policy thresholds.'],runtime=dict(python=platform.python_version(),sklearn=sklearn.__version__,numpy=np.__version__),parameters=model.get_params())
     bundle=dict(model=model,metadata=report)
     tmp=art/'model.tmp';joblib.dump(bundle,tmp);os.replace(tmp,art/'model.joblib')
     (art/'metrics.json').write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8')
-    data=ROOT/'data';data.mkdir(exist_ok=True)
+    data=ROOT/'data' if art==ROOT/'artifacts' else art;data.mkdir(parents=True,exist_ok=True)
     with (data/'training_transactions.csv').open('w',encoding='utf-8',newline='') as f:w=csv.DictWriter(f,fieldnames=list(rows[0]));w.writeheader();w.writerows(rows)
     print(json.dumps({k:report[k] for k in ['modelVersion','datasetSource','split','testMetrics']},indent=2))
 if __name__=='__main__':main()

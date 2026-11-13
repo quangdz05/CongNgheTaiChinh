@@ -318,6 +318,12 @@ namespace FraudDetectionService.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("AnalysisStrategy")
+                        .ValueGeneratedOnAdd()
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("LegacyScore");
+
                     b.Property<string>("Decision")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -353,6 +359,12 @@ namespace FraudDetectionService.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("RiskFindingsJson")
+                        .ValueGeneratedOnAdd()
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("[]");
+
                     b.Property<double>("RuleScore")
                         .HasColumnType("REAL");
 
@@ -370,11 +382,32 @@ namespace FraudDetectionService.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<double>("AmountDeviationThreshold")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("REAL")
+                        .HasDefaultValue(2.5);
+
                     b.Property<bool>("AmountEnabled")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("AnalysisStrategy")
+                        .ValueGeneratedOnAdd()
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("LegacyScore");
+
                     b.Property<double>("BlockThreshold")
                         .HasColumnType("REAL");
+
+                    b.Property<int>("BurstCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(3);
+
+                    b.Property<int>("BurstWindowSeconds")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(60);
 
                     b.Property<decimal>("CriticalAmount")
                         .HasColumnType("TEXT");
@@ -385,6 +418,11 @@ namespace FraudDetectionService.Infrastructure.Persistence.Migrations
                     b.Property<decimal>("HighAmount")
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("MinimumHistory")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(20);
+
                     b.Property<double>("MlWeight")
                         .HasColumnType("REAL");
 
@@ -393,6 +431,11 @@ namespace FraudDetectionService.Infrastructure.Persistence.Migrations
 
                     b.Property<int>("SharedDeviceUsers")
                         .HasColumnType("INTEGER");
+
+                    b.Property<int>("SharedIpUsers")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(5);
 
                     b.Property<bool>("UnusualEnabled")
                         .HasColumnType("INTEGER");

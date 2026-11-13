@@ -1,6 +1,7 @@
 import { AlertTriangle, X } from "lucide-react";
 import { Badge } from "../../../components/common";
 import { money, percent, type Evaluation } from "../../../shared/services/api";
+import { RiskFindings } from "./risk-findings";
 export function Detail({
   item: t,
   onClose,
@@ -12,7 +13,7 @@ export function Detail({
 }) {
   return (
     <div className="overlay">
-      <section className="modal detail">
+      <section className="modal detail" role="dialog" aria-modal="true" aria-label="Chi tiết giao dịch">
         <div className="modal-heading">
           <div>
             <h2>Chi tiết giao dịch</h2>
@@ -32,14 +33,18 @@ export function Detail({
           <Badge value={t.decision} />
         </div>
         <div className="detail-scores">
-          {[
-            ["Điểm luật", percent(t.ruleScore)],
+          {(t.analysisStrategy === "RiskSignals" ? [
+            ["Nhóm cần kiểm tra", String(new Set(t.riskFindings.filter(f => f.action === "REVIEW").map(f => f.group)).size)],
+            ["Điểm AI riêng", t.mlScore == null ? "Chưa đánh giá" : percent(t.mlScore)],
+            ["Xử lý", t.decision === "REVIEW" ? "Kiểm tra thủ công" : "Chưa có cờ kiểm tra"],
+          ] : [
+            ["Điểm luật", percent(t.ruleScore ?? 0)],
             [
               "Điểm ML",
               t.mlScore == null ? "Chưa đánh giá" : percent(t.mlScore),
             ],
-            ["Điểm cuối", percent(t.finalScore)],
-          ].map(([k, v]) => (
+            ["Điểm cuối", percent(t.finalScore ?? 0)],
+          ]).map(([k, v]) => (
             <div key={k}>
               <small>{k}</small>
               <strong>{v}</strong>
@@ -50,8 +55,9 @@ export function Detail({
           {t.mode} · AI: {t.aiStatus} · Luật v{t.ruleVersion}{" "}
           {t.modelVersion ? "· " + t.modelVersion : ""}
           <br />
-          Điểm rủi ro không phải xác suất gian lận đã hiệu chuẩn.
+          {t.analysisStrategy === "RiskSignals" ? "Phân nhóm dấu hiệu · Hybrid dùng luật HOẶC AI để yêu cầu kiểm tra, không cộng điểm. Điểm AI không phải kết luận loại gian lận." : "Kết quả lịch sử theo cách chấm điểm cũ. Điểm rủi ro không phải xác suất gian lận đã hiệu chuẩn."}
         </p>
+        {t.analysisStrategy === "RiskSignals" ? <RiskFindings findings={t.riskFindings} /> : <>
         <h3>Căn cứ nghiệp vụ</h3>
         {t.matches.length ? (
           t.matches.map((m) => (
@@ -70,6 +76,7 @@ export function Detail({
             tuyệt đối.
           </p>
         )}
+        </>}
         <details>
           <summary>Đặc trưng đã dùng để đánh giá</summary>
           <div className="feature-grid">

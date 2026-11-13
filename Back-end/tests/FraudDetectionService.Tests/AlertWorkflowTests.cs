@@ -95,6 +95,64 @@ public sealed class AlertWorkflowTests
         Assert.Equal(1, await db.AlertEvents.CountAsync());
         Assert.Equal(decision, (await db.Evaluations.SingleAsync()).Decision);
     }
+    [Theory]
+    [InlineData("RiskSignals", "REVIEW", "rule", "REVIEW", "RAPID_SEQUENCE", "P2", 60)]
+    [InlineData("RiskSignals", "REVIEW", "data", "REVIEW", "DATA_REVIEW", "P2", 60)]
+    [InlineData("RiskSignals", "REVIEW", "data", "INFORMATION", "LIMITED_HISTORY", "P3", 240)]
+    [InlineData("RiskSignals", "REVIEW", "rule", "OBSERVE", "SHARED_IP", "P3", 240)]
+    [InlineData("LegacyScore", "REVIEW", "rule", "REVIEW", "RAPID_SEQUENCE", "P3", 240)]
+    [InlineData("RiskSignals", "BLOCK", "rule", "REVIEW", "RAPID_SEQUENCE", "P1", 15)]
+    public void AiFallbackPriorityPreservesNonModelReviewSignals(string strategy, string decision, string source,
+        string action, string code, string priority, int minutes)
+    {
+        var now = new Clock().Now;
+        var tx = Tx(decision, "UnavailableReviewFallback");
+        tx.Evaluation.Mode = "Hybrid";
+        tx.Evaluation.AnalysisStrategy = strategy;
+        tx.Evaluation.RiskFindingsJson = JsonSerializer.Serialize(new List<RiskFinding>
+        {
+            new(code, "test", "Signal", "Evidence", source, action),
+            new("AI_UNAVAILABLE", "model", "AI unavailable", "Offline", "model", "REVIEW")
+        }, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+
+        var alert = AlertPolicy.Create(tx, now);
+
+        Assert.Equal(priority, alert.Priority);
+        Assert.Equal(minutes, alert.BudgetMinutes);
+        Assert.Equal(now.AddMinutes(minutes), alert.DueAt);
+        Assert.Equal("AiUnavailableFallback", alert.SourceType);
+        Assert.Equal("Evaluation: " + decision + (priority == "P2"
+            ? "; AI unavailable but rule signals require review" : ""), alert.PriorityReason);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData(" ")]
+    [InlineData("null")]
+    [InlineData("[]")]
+    [InlineData("[null]")]
+    [InlineData("invalid json")]
+    [InlineData("{}")]
+    [InlineData("[{\"source\":\"rule\",\"action\":42}]")]
+    [InlineData("[{\"code\":\"AI_UNAVAILABLE\",\"source\":\"model\",\"action\":\"REVIEW\"}]")]
+    public void AiFallbackWithoutNonModelReviewFindingsKeepsP3(string? findingsJson)
+    {
+        var now = new Clock().Now;
+        var tx = Tx("REVIEW", "UnavailableReviewFallback");
+        tx.Evaluation.Mode = "Hybrid";
+        tx.Evaluation.AnalysisStrategy = "RiskSignals";
+        tx.Evaluation.RiskFindingsJson = findingsJson!;
+
+        var alert = AlertPolicy.Create(tx, now);
+
+        Assert.Equal("P3", alert.Priority);
+        Assert.Equal(240, alert.BudgetMinutes);
+        Assert.Equal(now.AddMinutes(240), alert.DueAt);
+        Assert.Equal("Evaluation: REVIEW", alert.PriorityReason);
+        Assert.Equal("AiUnavailableFallback", alert.SourceType);
+    }
+
     [Fact]
     public async Task AllowNeverCreatesAlert()
     {
@@ -353,9 +411,15 @@ public sealed class AlertWorkflowTests
         await using var rig = new Rig(); await using var db = rig.Open();
         var migrator = db.GetService<IMigrator>();
         await migrator.MigrateAsync("20261106021653_OptimizeHistoryIndexes");
-        var tx = Tx(); db.Transactions.Add(tx); await db.SaveChangesAsync();
+        // Seed the historical schema explicitly: today's entity also contains columns added later.
+        var tx = Tx(); var e = tx.Evaluation;
+        await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO Transactions (Id,UserId,Amount,Currency,Merchant,Category,Country,DeviceHash,IpHash,Timestamp) VALUES ({tx.Id},{tx.UserId},{tx.Amount},{tx.Currency},{tx.Merchant},{tx.Category},{tx.Country},{tx.DeviceHash},{tx.IpHash},{tx.Timestamp.UtcTicks})");
+        await db.Database.ExecuteSqlInterpolatedAsync($"INSERT INTO Evaluations (TransactionId,Mode,RuleScore,MlScore,FinalScore,Decision,AiStatus,ModelVersion,RuleVersion,MatchesJson,FeaturesJson,PolicyJson,LatencyMs,EvaluatedAt) VALUES ({tx.Id},{e.Mode},{e.RuleScore},{e.MlScore},{e.FinalScore},{e.Decision},{e.AiStatus},{e.ModelVersion},{e.RuleVersion},{e.MatchesJson},{e.FeaturesJson},{e.PolicyJson},{e.LatencyMs},{e.EvaluatedAt.UtcTicks})");
         await db.Database.MigrateAsync(); await AlertBackfill.RunAsync(db, rig.Clock);
         Assert.Equal(1, await db.Alerts.CountAsync()); Assert.Equal(tx.Id, (await db.Transactions.SingleAsync()).Id);
+        var upgraded = await db.Evaluations.SingleAsync();
+        Assert.Equal(e.Decision, upgraded.Decision); Assert.Equal(e.FinalScore, upgraded.FinalScore);
+        Assert.Equal("LegacyScore", upgraded.AnalysisStrategy); Assert.Equal("[]", upgraded.RiskFindingsJson);
         Assert.False(db.Database.HasPendingModelChanges());
     }
 }

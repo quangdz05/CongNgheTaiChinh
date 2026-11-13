@@ -34,9 +34,9 @@ public sealed class TransactionsController(IFraudRepository store, DetectionServ
     {
         var rows = await store.ListAsync(null, null, 1, 10000, ct);
         static string Csv(string x) => "\"" + (x.StartsWith('=') || x.StartsWith('+') || x.StartsWith('-') || x.StartsWith('@') ? "'" : "") + x.Replace("\"", "\"\"") + "\"";
-        var sb = new StringBuilder("id,userId,amount,currency,timestamp,decision,ruleScore,mlScore,aiStatus\n");
+        var sb = new StringBuilder("id,userId,amount,currency,timestamp,decision,ruleScore,mlScore,aiStatus,analysisStrategy,riskFindings\n");
         foreach (var t in rows)
-            sb.AppendLine(string.Join(',', t.Id, Csv(t.UserId), t.Amount.ToString(System.Globalization.CultureInfo.InvariantCulture), t.Currency, t.Timestamp.ToString("O"), t.Evaluation.Decision, t.Evaluation.RuleScore.ToString(System.Globalization.CultureInfo.InvariantCulture), t.Evaluation.MlScore?.ToString(System.Globalization.CultureInfo.InvariantCulture), t.Evaluation.AiStatus));
+            sb.AppendLine(string.Join(',', t.Id, Csv(t.UserId), t.Amount.ToString(System.Globalization.CultureInfo.InvariantCulture), t.Currency, t.Timestamp.ToString("O"), t.Evaluation.Decision, t.Evaluation.AnalysisStrategy == "RiskSignals" ? "" : t.Evaluation.RuleScore.ToString(System.Globalization.CultureInfo.InvariantCulture), t.Evaluation.MlScore?.ToString(System.Globalization.CultureInfo.InvariantCulture), t.Evaluation.AiStatus, t.Evaluation.AnalysisStrategy, Csv(t.Evaluation.RiskFindingsJson)));
         return File(Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(sb.ToString())).ToArray(), "text/csv", "fraudshield-transactions.csv");
     }
 }

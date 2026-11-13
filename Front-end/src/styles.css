@@ -1109,6 +1109,26 @@ form .helper {
   grid-template-columns: 1.6fr 1fr;
   gap: 20px;
 }
+.workspace-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+.workspace-tabs button { border: 1px solid #d5dfe7; background: white; border-radius: 8px; padding: 12px 18px; cursor: pointer; color: #31485b; font-size: 12px; }
+.workspace-tabs button.active { background: #127d6a; border-color: #127d6a; color: white; }
+.workspace-panel { padding: 24px; }
+.workspace-panel h2 { margin-bottom: 12px; }
+.workspace-panel h3 { margin: 22px 0 12px; }
+.workspace-panel p { line-height: 1.65; margin: 10px 0; }
+.workspace-panel label { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; font-size: 12px; color: #465a6b; }
+.workspace-panel input, .workspace-panel select, .workspace-panel textarea { width: 100%; padding: 10px; border: 1px solid #cbd7e0; border-radius: 7px; background: white; color: #1e3447; }
+.workspace-panel textarea { font-family: Consolas, monospace; resize: vertical; }
+.workspace-note { border-left: 3px solid #127d6a; padding-left: 14px; color: #465a6b; }
+.workspace-report { margin: 22px 0; }
+.workspace-panel .metric-grid, .workspace-panel .matrix { padding: 0; margin: 18px 0; }
+.workspace-create { display: flex; gap: 14px; align-items: end; flex-wrap: wrap; margin: 24px 0; }
+.workspace-create label { flex: 1; min-width: 200px; margin: 0; }
+.workspace-create button { min-height: 42px; }
+.workspace-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
+.workspace-result { padding: 14px 0; color: #176955; }
+.workspace-panel .table-scroll { overflow-x: auto; }
+.workspace-panel table { width: 100%; min-width: 650px; }
 .ai-layout > .panel {
   padding-bottom: 25px;
 }
@@ -1596,3 +1616,12 @@ form .helper {
     grid-template-columns: repeat(2, 1fr);
   }
 }
+.risk-tags { display: flex; flex-wrap: wrap; gap: 6px; max-width: 280px; }
+.risk-tags small { flex-basis: 100%; }
+.risk-group { margin: 18px 0; }
+.risk-group h3 { margin-bottom: 8px; }
+.risk-group .match { align-items: flex-start; }
+.risk-group .match p { overflow-wrap: anywhere; }
+.risk-group .match small { color: #66788f; }
+.rules-panel form > label { display: grid; gap: 8px; margin-bottom: 16px; }
+.rules-panel .notice { margin: 16px 0; }

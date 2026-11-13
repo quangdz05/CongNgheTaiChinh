@@ -14,6 +14,12 @@ public sealed class OperationsController(IFraudRepository repository, IAiClient 
 {
     [HttpGet("dashboard")] public Task<object> Dashboard(CancellationToken ct) => repository.StatsAsync(ct);
     [HttpGet("rules")] public Task<RulePolicy> Rules(CancellationToken ct) => repository.PolicyAsync(ct);
+    [HttpGet("rules/references")] public object RuleReferences() => new
+    {
+        references = RiskRuleReferences.All, validationStatus = "Experimental",
+        inputTrust = "UserProvidedDemo", reviewedOn = "2026-11-12",
+        limitations = "Nguồn hỗ trợ nhóm dấu hiệu, không chứng minh các ngưỡng số hoặc xác nhận tuân thủ pháp luật. Dữ liệu thiết bị, IP, quốc gia do người dùng nhập hoặc mô phỏng; chưa xác minh độc lập."
+    };
     [HttpPut("rules"), Authorize(Policy = FraudPermissions.ManageRules)]
     public Task<RulePolicy> Update(RulePolicy policy, CancellationToken ct) => updatePolicy.Handle(new(policy, User.Identity!.Name!), ct);
     [HttpGet("audit"), Authorize(Policy = FraudPermissions.ReadAudit)] public Task<List<AuditEntry>> Audit(CancellationToken ct) => repository.AuditAsync(ct);

@@ -43,9 +43,15 @@ public sealed class FraudRepository(FraudDbContext db, TimeProvider? clock = nul
         return q;
     }
     public Task<List<Transaction>> ListAsync(string? decision, string? search, int page, int size, CancellationToken ct) => Filter(decision, search).OrderByDescending(t => t.Timestamp).ThenBy(t => t.Id).Skip((page - 1) * size).Take(size).ToListAsync(ct);
-    public Task<List<TransactionSummary>> ListSummariesAsync(string? decision, string? search, int page, int size, CancellationToken ct) => Filter(decision, search)
-        .OrderByDescending(t => t.Timestamp).ThenBy(t => t.Id).Skip((page - 1) * size).Take(size)
-        .Select(t => new TransactionSummary(t.Id, t.UserId, t.Amount, t.Currency, t.Merchant, t.Timestamp, t.Evaluation.FinalScore, t.Evaluation.Decision)).ToListAsync(ct);
+    public async Task<List<TransactionSummary>> ListSummariesAsync(string? decision, string? search, int page, int size, CancellationToken ct)
+    {
+        var rows = await Filter(decision, search).OrderByDescending(t => t.Timestamp).ThenBy(t => t.Id)
+            .Skip((page - 1) * size).Take(size)
+            .Select(t => new { t.Id, t.UserId, t.Amount, t.Currency, t.Merchant, t.Timestamp,
+                t.Evaluation.FinalScore, t.Evaluation.Decision, t.Evaluation.AnalysisStrategy, t.Evaluation.RiskFindingsJson }).ToListAsync(ct);
+        return rows.Select(t => new TransactionSummary(t.Id, t.UserId, t.Amount, t.Currency, t.Merchant, t.Timestamp,
+            t.AnalysisStrategy == "RiskSignals" ? null : t.FinalScore, t.Decision, t.AnalysisStrategy, JsonSerializer.Deserialize<List<RiskFinding>>(t.RiskFindingsJson, DetectionService.Json))).ToList();
+    }
     public Task<int> CountAsync(string? decision, string? search, CancellationToken ct) => Filter(decision, search).CountAsync(ct);
     public Task<List<AnalystReview>> ReviewsAsync(Guid id, CancellationToken ct) => Reviews.AsNoTracking().Where(r => r.TransactionId == id).OrderByDescending(r => r.ReviewedAt).ToListAsync(ct);
     public async Task ReviewAsync(AnalystReview review, CancellationToken ct)

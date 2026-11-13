@@ -116,6 +116,7 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
     [error, setError] = useState(""),
     [toast, setToast] = useState("");
   const [revision, setRevision] = useState(0);
+  const [transactionsLoading, setTransactionsLoading] = useState(true);
   const [alertStats, setAlertStats] = useState<AlertStats | null>(null);
   useEffect(() => {
     let active = true;
@@ -172,6 +173,7 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
   useEffect(() => {
     if (!["overview", "transactions", "ai"].includes(page)) return;
     const controller = new AbortController();
+    setTransactionsLoading(true);
     setRows([]);
     const id = setTimeout(() => {
       setError("");
@@ -187,6 +189,9 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
         })
         .catch((e) => {
           if (!controller.signal.aborted) setError(e.message);
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setTransactionsLoading(false);
         });
     }, 250);
     return () => {
@@ -395,18 +400,18 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
                 className="button primary"
                 onClick={() => setFormOpen(true)}
               >
-                <Plus size={17} /> Phân tích giao dịch
+                <Plus size={17} /> Tạo giao dịch
               </button>
             </div>
           </div>
-          <div className="mode-bar">
+          {page !== "ai" && <div className="mode-bar">
             <div>
               <span className="mode-icon">
                 <Activity size={17} />
               </span>
               <span>
                 <strong>
-                  {mode === "RulesOnly" ? "Chế độ giữa kỳ" : "Chế độ cuối kỳ"}
+                  {mode === "RulesOnly" ? "Phân tích bằng luật" : "Phân tích Hybrid"}
                 </strong>
                 <small>
                   {mode === "RulesOnly"
@@ -423,7 +428,7 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
               <option value="RulesOnly">Rules Only</option>
               <option value="Hybrid">Hybrid + AI</option>
             </select>
-          </div>
+          </div>}
           {error && (
             <div className="error" role="alert">
               <AlertTriangle size={18} />
@@ -633,7 +638,7 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
                     <tr>
                       <th>GIAO DỊCH / NGƯỜI DÙNG</th>
                       <th>SỐ TIỀN</th>
-                      <th>ĐIỂM RỦI RO</th>
+                      <th>DẤU HIỆU / ĐÁNH GIÁ</th>
                       <th>QUYẾT ĐỊNH</th>
                       <th>THỜI GIAN</th>
                       <th />
@@ -657,11 +662,15 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
                         </td>
                         <td className="amount">{money(t.amount)}</td>
                         <td>
-                          <span className="score">
+                          {t.analysisStrategy === "RiskSignals" ? <div className="risk-tags">
+                            {[...new Set((t.riskFindings ?? []).filter(f => f.action === "REVIEW").map(f => f.group))].map(g => <span className="badge review" key={g}>{{frequency: "Tần suất", value: "Giá trị", context: "Truy cập", linkage: "Liên kết tài khoản", model: "Tín hiệu AI", data_quality: "Thiếu đánh giá AI"}[g] ?? g}</span>)}
+                            {!(t.riskFindings ?? []).some(f => f.action === "REVIEW") && <small>Chưa có cờ kiểm tra</small>}
+                            {(t.riskFindings ?? []).some(f => f.code === "LIMITED_HISTORY") && <small>Chưa đủ lịch sử</small>}
+                          </div> : <><small>Chấm điểm cũ</small><span className="score">
                             <span className="score-track">
                               <i
                                 style={{
-                                  width: percent(t.finalScore),
+                                  width: percent(t.finalScore ?? 0),
                                   background:
                                     t.decision === "BLOCK"
                                       ? "#db6464"
@@ -671,8 +680,8 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
                                 }}
                               />
                             </span>
-                            {percent(t.finalScore)}
-                          </span>
+                            {percent(t.finalScore ?? 0)}
+                          </span></>}
                         </td>
                         <td>
                           <Badge value={t.decision} />
@@ -688,13 +697,17 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
                   </tbody>
                 </table>
               </div>
-              {!visibleRows.length && (
+              {transactionsLoading && <div className="empty" role="status"><LoaderCircle className="spin" size={26} /><strong>Đang tải giao dịch…</strong></div>}
+              {!transactionsLoading && !visibleRows.length && (
+                <>
                 <Empty
                   text="Chưa có giao dịch phù hợp"
                   detail={
-                    "Bắt đầu bằng một giao dịch hoặc bộ dữ liệu mô phỏng."
+                    "Bạn có thể nhập và lưu giao dịch riêng bằng nút Tạo giao dịch."
                   }
                 />
+                <div style={{ textAlign: "center", paddingBottom: 24 }}><button className="button primary" onClick={() => setFormOpen(true)}><Plus size={17} /> Tạo giao dịch mới</button></div>
+                </>
               )}
               <div className="pagination">
                 <span>
@@ -703,14 +716,14 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
                 <div>
                   <button
                     className="button"
-                    disabled={pageNo === 1}
+                    disabled={transactionsLoading || pageNo === 1}
                     onClick={() => setPageNo((n) => n - 1)}
                   >
                     Trước
                   </button>
                   <button
                     className="button"
-                    disabled={pageNo * 12 >= total}
+                    disabled={transactionsLoading || pageNo * 12 >= total}
                     onClick={() => setPageNo((n) => n + 1)}
                   >
                     Sau
@@ -721,6 +734,7 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
           )}
           {page === "rules" && policy && (
             <Rules
+              modelMetrics={metrics}
               policy={policy}
               canEdit={user.role === "Admin"}
               onSaved={(p) => {
@@ -809,7 +823,12 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
           onClose={() => setFormOpen(false)}
           onSuccess={(t) => {
             setFormOpen(false);
+            setPage("transactions");
+            setPageNo(1);
+            setSearch("");
+            setFilter("");
             setSelected(t);
+            notify("Đã tạo và lưu giao dịch của bạn.");
             void load();
           }}
         />

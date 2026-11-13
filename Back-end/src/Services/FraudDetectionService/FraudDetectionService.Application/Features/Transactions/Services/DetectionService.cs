@@ -31,24 +31,40 @@ public sealed class DetectionService(IFraudRepository store, IAiClient ai, IPiiH
             }
             var p = await store.PolicyAsync(ct);
             var tx = new Transaction { Id = id, UserId = req.UserId.Trim(), Amount = req.Amount, Currency = req.Currency, Merchant = req.Merchant, Category = req.Category, Country = req.Country, DeviceHash = hasher.Hash(req.DeviceId), IpHash = hasher.Hash(canonicalIp), Timestamp = timestamp };
-            var features = FeatureBuilder.Build(tx, await store.HistoryAsync(timestamp, userId, deviceHash, ipHash, ct));
-            var matches = RuleEngine.Evaluate(features, p);
+            var history = await store.HistoryAsync(timestamp, userId, deviceHash, ipHash, ct);
+            var features = FeatureBuilder.Build(tx, history);
+            var matches = p.AnalysisStrategy == "RiskSignals" ? new List<RuleMatch>() : RuleEngine.Evaluate(features, p);
             var ruleScore = matches.Count == 0 ? 0 : matches.Max(r => r.Score);
             AiPrediction? prediction = null;
             if (req.Mode == "Hybrid")
                 prediction = await ai.PredictAsync(id, features, ct);
-            var critical = matches.Any(m => m.Critical);
-            var score = prediction == null ? ruleScore : (1 - p.MlWeight) * ruleScore + p.MlWeight * prediction.Score;
-            if (critical)
-                score = Math.Max(score, .95);
-            // Strong rules remain enforceable even when ML disagrees.
-            var decision = RiskDecision.From(score, p, critical || ruleScore >= p.BlockThreshold);
-            if (req.Mode == "Hybrid" && prediction == null && decision == "ALLOW")
-                decision = "REVIEW";
+            double score;
+            string decision;
+            List<RiskFinding> findings = [];
+            if (p.AnalysisStrategy == "RiskSignals")
+            {
+                findings = RiskSignalAnalyzer.WithModel(RiskSignalAnalyzer.Analyze(tx, history, features, p), prediction, req.Mode, p);
+                decision = RiskSignalAnalyzer.Decision(findings);
+                // Compatibility numeric fields have no meaning for a signal assessment. Never blend scores.
+                ruleScore = 0;
+                score = 0;
+                matches = [];
+            }
+            else
+            {
+                var critical = matches.Any(m => m.Critical);
+                score = prediction == null ? ruleScore : (1 - p.MlWeight) * ruleScore + p.MlWeight * prediction.Score;
+                if (critical) score = Math.Max(score, .95);
+                // Historical scoring is retained only for the explicitly selected legacy policy.
+                decision = RiskDecision.From(score, p, critical || ruleScore >= p.BlockThreshold);
+                if (req.Mode == "Hybrid" && prediction == null && decision == "ALLOW") decision = "REVIEW";
+            }
             tx.Evaluation = new Evaluation { TransactionId = id, Mode = req.Mode, RuleScore = ruleScore, MlScore = prediction?.Score, FinalScore = Math.Round(score, 4), Decision = decision, AiStatus = req.Mode == "RulesOnly" ? "Disabled" : prediction == null ? "UnavailableReviewFallback" : "Available", ModelVersion = prediction?.ModelVersion, RuleVersion = p.Version, MatchesJson = JsonSerializer.Serialize(matches, Json), FeaturesJson = JsonSerializer.Serialize(features, Json), PolicyJson = JsonSerializer.Serialize(p, Json), LatencyMs = Math.Round(sw.Elapsed.TotalMilliseconds, 2) };
+            tx.Evaluation.AnalysisStrategy = p.AnalysisStrategy;
+            tx.Evaluation.RiskFindingsJson = JsonSerializer.Serialize(findings, Json);
             await store.AddAsync(tx, ct);
             return await ViewAsync(tx, ct);
         }
     }
-    public async Task<EvaluationView> ViewAsync(Transaction tx, CancellationToken ct) => new(tx.Id, tx.UserId, tx.Amount, tx.Currency, tx.Merchant, tx.Category, tx.Country, tx.DeviceHash, tx.IpHash, tx.Timestamp, tx.Evaluation.Mode, tx.Evaluation.RuleScore, tx.Evaluation.MlScore, tx.Evaluation.FinalScore, tx.Evaluation.Decision, tx.Evaluation.AiStatus, tx.Evaluation.ModelVersion, tx.Evaluation.RuleVersion, tx.Evaluation.LatencyMs, JsonSerializer.Deserialize<List<RuleMatch>>(tx.Evaluation.MatchesJson, Json)!, JsonSerializer.Deserialize<FeatureVector>(tx.Evaluation.FeaturesJson, Json)!, await store.ReviewsAsync(tx.Id, ct));
+    public async Task<EvaluationView> ViewAsync(Transaction tx, CancellationToken ct) => new(tx.Id, tx.UserId, tx.Amount, tx.Currency, tx.Merchant, tx.Category, tx.Country, tx.DeviceHash, tx.IpHash, tx.Timestamp, tx.Evaluation.Mode, tx.Evaluation.AnalysisStrategy == "RiskSignals" ? null : tx.Evaluation.RuleScore, tx.Evaluation.MlScore, tx.Evaluation.AnalysisStrategy == "RiskSignals" ? null : tx.Evaluation.FinalScore, tx.Evaluation.Decision, tx.Evaluation.AiStatus, tx.Evaluation.ModelVersion, tx.Evaluation.RuleVersion, tx.Evaluation.LatencyMs, JsonSerializer.Deserialize<List<RuleMatch>>(tx.Evaluation.MatchesJson, Json)!, JsonSerializer.Deserialize<FeatureVector>(tx.Evaluation.FeaturesJson, Json)!, await store.ReviewsAsync(tx.Id, ct), tx.Evaluation.AnalysisStrategy, JsonSerializer.Deserialize<List<RiskFinding>>(tx.Evaluation.RiskFindingsJson, Json)!);
 }

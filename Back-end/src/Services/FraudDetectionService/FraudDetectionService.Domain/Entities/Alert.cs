@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace FraudDetectionService.Domain;
 
 public sealed class Alert
@@ -63,19 +65,37 @@ public sealed class AlertCommandReceipt
 
 public static class AlertPolicy
 {
+    private static readonly JsonSerializerOptions FindingsJson = new(JsonSerializerDefaults.Web);
     public static readonly string[] States = ["New", "Assigned", "InProgress", "Waiting", "Escalated", "Closed"];
     public static readonly string[] Priorities = ["P1", "P2", "P3"];
     public static int Budget(string priority) => priority switch { "P1" => 15, "P2" => 60, "P3" => 240, _ => throw new ArgumentException("Mức ưu tiên không hợp lệ.") };
     public static Alert Create(Transaction tx, DateTimeOffset now, bool imported = false)
     {
         var e = tx.Evaluation;
-        var priority = e.Decision == "BLOCK" ? "P1" : e.AiStatus == "UnavailableReviewFallback" ? "P3" : "P2";
+        var fallbackRequiresReview = e.Decision != "BLOCK" && e.AiStatus == "UnavailableReviewFallback"
+            && e.AnalysisStrategy == "RiskSignals" && HasNonModelReviewFinding(e.RiskFindingsJson);
+        var priority = e.Decision == "BLOCK" ? "P1" : e.AiStatus == "UnavailableReviewFallback" && !fallbackRequiresReview ? "P3" : "P2";
         return new Alert
         {
             TransactionId = tx.Id, CreatedAt = now, UpdatedAt = now, OriginalEvaluatedAt = e.EvaluatedAt,
             SourceType = imported ? "ImportedLegacy" : e.AiStatus == "UnavailableReviewFallback" ? "AiUnavailableFallback" : e.Mode == "Hybrid" ? "Hybrid" : "Rules",
-            Priority = priority, PriorityReason = "Evaluation: " + e.Decision,
+            Priority = priority, PriorityReason = "Evaluation: " + e.Decision
+                + (fallbackRequiresReview ? "; AI unavailable but rule signals require review" : ""),
             BudgetMinutes = Budget(priority), SlaStartedAt = now, DueAt = now.AddMinutes(Budget(priority)), EscalationEligibleAt = now
         };
+    }
+
+    private static bool HasNonModelReviewFinding(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return false;
+        try
+        {
+            var findings = JsonSerializer.Deserialize<List<RiskFinding>>(json, FindingsJson);
+            return findings?.Any(f => f != null && f.Source != "model" && f.Action == "REVIEW") == true;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
     }
 }

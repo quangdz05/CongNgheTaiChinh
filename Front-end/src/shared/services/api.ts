@@ -5,6 +5,12 @@ export type Match = {
   evidence: string;
   critical: boolean;
 };
+export type RiskReference = { id: string; title: string; url: string; scope: string };
+export type RiskFinding = { code: string; group: string; title: string; evidence: string; source: string; action: string; references?: RiskReference[]; validationStatus?: string; inputTrust?: string };
+export const riskGroups: Record<string, string> = {
+  frequency: "Tần suất", value: "Giá trị", context: "Truy cập", linkage: "Liên kết tài khoản",
+  data_quality: "Chất lượng dữ liệu", model: "Tín hiệu AI",
+};
 export type Review = {
   id: string;
   isFraud: boolean;
@@ -24,9 +30,9 @@ export type Evaluation = {
   ipHash: string;
   timestamp: string;
   mode: string;
-  ruleScore: number;
+  ruleScore: number | null;
   mlScore: number | null;
-  finalScore: number;
+  finalScore: number | null;
   decision: string;
   aiStatus: string;
   modelVersion: string | null;
@@ -35,6 +41,8 @@ export type Evaluation = {
   matches: Match[];
   features: Record<string, number>;
   reviews: Review[];
+  analysisStrategy: string;
+  riskFindings: RiskFinding[];
 };
 export type Policy = {
   id: number;
@@ -51,6 +59,12 @@ export type Policy = {
   deviceEnabled: boolean;
   unusualEnabled: boolean;
   updatedBy: string;
+  analysisStrategy: string;
+  burstWindowSeconds: number;
+  burstCount: number;
+  minimumHistory: number;
+  amountDeviationThreshold: number;
+  sharedIpUsers: number;
 };
 export type Stats = {
   total: number;
@@ -75,6 +89,8 @@ export type TransactionSummary = Pick<
   | "timestamp"
   | "finalScore"
   | "decision"
+  | "analysisStrategy"
+  | "riskFindings"
 >;
 let sessionController = new AbortController();
 export class ApiError extends Error {

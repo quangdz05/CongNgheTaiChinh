@@ -8,5 +8,7 @@ public sealed class EvaluationConfiguration : IEntityTypeConfiguration<Evaluatio
     public void Configure(EntityTypeBuilder<Evaluation> b)
     {
         b.HasKey(e => e.TransactionId);
+        b.Property(e => e.AnalysisStrategy).HasDefaultValue("LegacyScore");
+        b.Property(e => e.RiskFindingsJson).HasDefaultValue("[]");
     }
 }

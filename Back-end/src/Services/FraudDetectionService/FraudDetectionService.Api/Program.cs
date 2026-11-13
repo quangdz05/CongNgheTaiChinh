@@ -67,6 +67,12 @@ builder.Services.AddScoped<UpdateRulePolicyCommandHandler>();
 builder.Services.AddScoped<RunDemoCommandHandler>();
 builder.Services.AddScoped<CompareEvaluationQueryHandler>();
 builder.Services.AddHttpClient<IAiClient, AiClient>(http => { http.BaseAddress = new Uri(builder.Configuration["Ai:BaseUrl"] ?? "http://127.0.0.1:8001/"); http.Timeout = TimeSpan.FromSeconds(Math.Clamp(builder.Configuration.GetValue("Ai:TimeoutSeconds", 3), 1, 30)); http.DefaultRequestHeaders.Add("X-Service-Key", aiKey); });
+builder.Services.AddHttpClient("AiWorkspace", http =>
+{
+    http.BaseAddress = new Uri(builder.Configuration["Ai:BaseUrl"] ?? "http://127.0.0.1:8001/");
+    http.Timeout = TimeSpan.FromSeconds(30);
+    http.DefaultRequestHeaders.Add("X-Service-Key", aiKey);
+});
 builder.Services.AddControllers().AddJsonOptions(o => o.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase);
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(o => o.TokenValidationParameters = new() { ValidateIssuer = true, ValidIssuer = "FraudShield", ValidateAudience = true, ValidAudience = "FraudShield.Web", ValidateLifetime = true, ClockSkew = TimeSpan.FromSeconds(15), ValidateIssuerSigningKey = true, IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecret)) });
 builder.Services.AddAuthorization(o =>
@@ -120,7 +126,7 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<FraudDbContext>();
     await db.Database.MigrateAsync();
     if (!await db.Policies.AnyAsync())
-        db.Policies.Add(new());
+        db.Policies.Add(new() { AnalysisStrategy = "RiskSignals", AmountEnabled = false });
     if (!await db.Users.AnyAsync())
     {
         var password = builder.Configuration["Security:AdminPassword"] ?? (dev ? "Admin@123456" : throw new InvalidOperationException("Set Security:AdminPassword for initial admin."));

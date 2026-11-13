@@ -6,6 +6,7 @@ import {
   type TransactionSummary,
 } from "../../../shared/services/api";
 import { compareTransaction } from "../_services/services";
+import { PersonalDatasets, RealDataModel } from "./ai-workspace";
 export function AiPanel({
   status,
   metrics,
@@ -15,17 +16,22 @@ export function AiPanel({
   metrics: any;
   rows: TransactionSummary[];
 }) {
+  const [tab, setTab] = useState("real");
   const [id, setId] = useState(""),
     [comparison, setComparison] = useState<any>(null),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
-  return (
+  return <>
+    <div className="workspace-tabs" role="group" aria-label="Mô hình và dữ liệu AI">
+      {[["real", "Dữ liệu thực ULB"], ["datasets", "Bộ dữ liệu của tôi"], ["native", "AI giao dịch VND"]].map(([key, label]) => <button key={key} className={tab === key ? "active" : ""} aria-pressed={tab === key} onClick={() => setTab(key)}>{label}</button>)}
+    </div>
+    {tab === "real" ? <RealDataModel /> : tab === "datasets" ? <PersonalDatasets /> : (
     <div className="ai-layout">
       <section className="panel">
         <div className="panel-heading">
           <div>
-            <h2>Model evaluation</h2>
-            <p>Chỉ hiển thị số liệu API trả về từ quá trình huấn luyện.</p>
+            <h2>Mô hình giao dịch VND</h2>
+            <p>Mô hình riêng dùng 10 đặc trưng nghiệp vụ, không phải mô hình ULB.</p>
           </div>
           <Badge value={status === "Ready" ? "READY" : "OFFLINE"} />
         </div>
@@ -118,7 +124,7 @@ export function AiPanel({
         {comparison && (
           <div className="compare-result">
             <p>
-              Luật: <strong>{percent(comparison.ruleScore)}</strong> ·{" "}
+              Luật: <strong>{comparison.analysisStrategy === "RiskSignals" ? "Theo dấu hiệu đã lưu" : percent(comparison.ruleScore)}</strong> ·{" "}
               {comparison.ruleDecision}
             </p>
             <p>
@@ -132,7 +138,7 @@ export function AiPanel({
             <p>
               Hybrid:{" "}
               <strong>
-                {comparison.hybridScore == null
+                {comparison.analysisStrategy === "RiskSignals" ? "Luật hoặc AI yêu cầu kiểm tra" : comparison.hybridScore == null
                   ? "Chưa đánh giá"
                   : percent(comparison.hybridScore)}
               </strong>{" "}
@@ -143,5 +149,5 @@ export function AiPanel({
         )}
       </section>
     </div>
-  );
+  )}</>;
 }

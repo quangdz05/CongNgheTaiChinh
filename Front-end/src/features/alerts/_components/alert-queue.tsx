@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { RiskFindings } from "../../transactions/_components/risk-findings";
 import {
   ApiError,
   api,
@@ -720,10 +721,11 @@ function AlertInspector({
               <p className="helper">
                 {evaluation.userId} · {evaluation.merchant} ·{" "}
                 {money(evaluation.amount)} · {evaluation.decision} ·{" "}
-                {percent(evaluation.finalScore)}
+                {evaluation.analysisStrategy === "RiskSignals" ? "Phân nhóm dấu hiệu" : percent(evaluation.finalScore ?? 0)}
                 <br />
                 Quyết định gốc được giữ nguyên. BLOCK chưa phải chặn tiền thật.
               </p>
+              {evaluation.analysisStrategy === "RiskSignals" && <RiskFindings findings={evaluation.riskFindings} />}
               {evaluation.matches.map((m) => (
                 <div className="match" key={m.code}>
                   <div>

@@ -4,6 +4,12 @@ public sealed class RulePolicy
 {
     public int Id { get; set; } = 1;
     public int Version { get; set; } = 1;
+    public string AnalysisStrategy { get; set; } = "LegacyScore";
+    public int BurstWindowSeconds { get; set; } = 60;
+    public int BurstCount { get; set; } = 3;
+    public int MinimumHistory { get; set; } = 20;
+    public double AmountDeviationThreshold { get; set; } = 2.5;
+    public int SharedIpUsers { get; set; } = 5;
     public decimal HighAmount { get; set; } = 125_000_000;
     public decimal CriticalAmount { get; set; } = 250_000_000;
     public int VelocityCount { get; set; } = 10;
