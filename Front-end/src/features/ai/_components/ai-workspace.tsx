@@ -17,6 +17,55 @@ type Row = { userId: string; amount: number; currency: string; merchant: string;
 type Sample = { id: number; features: Record<string, number>; label: number };
 const statusLabels: Record<string, string> = { draft: "Bản nháp", training: "Đang huấn luyện", ready: "Đã huấn luyện", failed: "Chưa huấn luyện được" };
 
+type ModelOption = { datasetId: string | null; name: string; modelVersion: string | null };
+type HybridModel = { active: ModelOption; canManage: boolean; options: ModelOption[] };
+
+export function HybridModelSelector({ onApplied }: { onApplied: () => void }) {
+  const [state, setState] = useState<HybridModel | null>(null);
+  const [selected, setSelected] = useState("");
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const load = useCallback(async () => {
+    const result = await api<HybridModel>(base + "/hybrid-model");
+    setState(result);
+    setSelected(result.active.datasetId ?? "");
+  }, []);
+  useEffect(() => { void load().catch((e: Error) => setError(e.message)); }, [load]);
+  const options = state?.options ?? [];
+  const selectedActive = state?.active.datasetId && !options.some(o => o.datasetId === state.active.datasetId);
+  return <section className="panel workspace-panel" style={{ marginBottom: 18 }}>
+    <h2>Mô hình áp dụng cho Hybrid</h2>
+    {state && <p role="status">Đang áp dụng: <strong>{state.active.name}</strong>{state.active.modelVersion && <> · {state.active.modelVersion}</>}</p>}
+    <p className="helper">Áp dụng cho các giao dịch Hybrid mới của toàn hệ thống và chức năng so sánh. Kết quả giao dịch cũ giữ nguyên. RulesOnly không dùng AI. Ngưỡng quyết định vẫn theo Luật nghiệp vụ.</p>
+    {error && <div className="error" role="alert">{error}</div>}
+    {message && <p className="workspace-result" role="status">{message}</p>}
+    {state?.canManage ? <>
+      <label>Chọn mô hình đã huấn luyện<select value={selected} disabled={busy} onChange={e => { setSelected(e.target.value); setMessage(""); }}>
+        <option value="">Mô hình VND mặc định</option>
+        {selectedActive && <option value={state.active.datasetId!}>{state.active.name} · Bản đang áp dụng</option>}
+        {options.map(o => <option key={o.datasetId} value={o.datasetId!}>{o.name} · {o.modelVersion}</option>)}
+      </select></label>
+      <p className="helper">Danh sách gồm các bộ dữ liệu của bạn đã train xong. Mô hình ULB dùng đặc trưng khác nên không thể áp dụng. Dữ liệu mô phỏng hoặc nhãn nhập tay chưa chứng minh hiệu quả thực tế.</p>
+      <div className="workspace-actions">
+        <button className="button primary" disabled={busy || !!(selectedActive && selected === state.active.datasetId)} onClick={async () => {
+          setBusy(true); setError(""); setMessage("");
+          try {
+            const result = await post<HybridModel>(base + "/hybrid-model", { datasetId: selected || null });
+            setState(result); setSelected(result.active.datasetId ?? "");
+            onApplied();
+            setMessage("Đã áp dụng mô hình cho Hybrid. Hệ thống giữ bản sao này đến khi Admin chọn lại.");
+          } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+        }}>Áp dụng cho Hybrid toàn hệ thống</button>
+        <button className="button" disabled={busy} onClick={async () => {
+          setBusy(true); setError("");
+          try { await load(); } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+        }}>Làm mới danh sách</button>
+      </div>
+    </> : state ? <p className="helper">Chỉ Admin được đổi mô hình áp dụng cho Hybrid.</p> : <p>Đang tải mô hình…</p>}
+  </section>;
+}
+
 function Metrics({ report }: { report: Report }) {
   return <div className="workspace-report">
     <p><strong>{report.modelVersion}</strong></p>
@@ -121,7 +170,7 @@ export function PersonalDatasets() {
   return <section className="panel workspace-panel">
     <h2>Bộ dữ liệu của tôi</h2>
     <p>Tạo bộ dữ liệu riêng bằng cách nhập giao dịch có nhãn hoặc sinh dữ liệu mô phỏng. Dữ liệu này tách khỏi lịch sử giao dịch trên website.</p>
-    <p className="workspace-note">Dữ liệu tự sinh luôn được ghi là mô phỏng. Nhãn người dùng nhập chưa được xác minh độc lập. Train bộ riêng không tự thay mô hình của tất cả người dùng.</p>
+    <p className="workspace-note">Dữ liệu tự sinh luôn được ghi là mô phỏng. Nhãn người dùng nhập chưa được xác minh độc lập. Train xong, Admin có thể làm mới danh sách và chọn áp dụng cho Hybrid ở phía trên. Train lại không tự đổi bản đang áp dụng.</p>
     {error && <div className="error" role="alert">{error}</div>}
     {message && <p className="workspace-result" role="status">{message}</p>}
     <form className="workspace-create" onSubmit={e => { e.preventDefault(); void act(async () => { const d = await post<Dataset>(base + "/datasets", { name }); await list(); setId(d.id); setName(""); setMessage("Đã tạo bộ dữ liệu. Thêm giao dịch hoặc sinh dữ liệu bên dưới."); }); }}>

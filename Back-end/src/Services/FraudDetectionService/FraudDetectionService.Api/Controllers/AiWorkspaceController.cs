@@ -8,6 +8,10 @@ namespace FraudDetectionService.Api.Controllers;
 [ApiController, Route("api/ai/workspace"), Authorize(Roles = "Admin,Analyst")]
 public sealed class AiWorkspaceController(IHttpClientFactory clients) : ControllerBase
 {
+    [HttpGet("hybrid-model")]
+    public Task<IActionResult> HybridModel(CancellationToken ct) => Forward("hybrid-model", HttpMethod.Get, ct);
+    [HttpPost("hybrid-model"), Authorize(Roles = "Admin")]
+    public Task<IActionResult> SelectHybridModel(CancellationToken ct) => Forward("hybrid-model", HttpMethod.Post, ct);
     [HttpGet("ulb")] public Task<IActionResult> Ulb(CancellationToken ct) => Forward("ulb", HttpMethod.Get, ct);
     [HttpGet("ulb/samples")] public Task<IActionResult> Samples(CancellationToken ct) => Forward("ulb/samples", HttpMethod.Get, ct);
     [HttpPost("ulb/predict")] public Task<IActionResult> Predict(CancellationToken ct) => Forward("ulb/predict", HttpMethod.Post, ct);
@@ -34,6 +38,7 @@ public sealed class AiWorkspaceController(IHttpClientFactory clients) : Controll
     {
         using var request = new HttpRequestMessage(method, "v1/workspace/" + path);
         request.Headers.Add("X-Actor", User.Identity!.Name!);
+        request.Headers.Add("X-Actor-Role", User.IsInRole("Admin") ? "Admin" : "Analyst");
         if (method == HttpMethod.Post)
         {
             request.Content = new StreamContent(Request.Body);

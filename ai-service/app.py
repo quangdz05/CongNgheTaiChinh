@@ -6,6 +6,7 @@ from fastapi import FastAPI,HTTPException,Header,Depends
 from pydantic import BaseModel,ConfigDict,Field,field_validator
 from features import NAMES,SCHEMA
 import workspace
+import hybrid_models
 
 ROOT=Path(__file__).resolve().parent
 bundle=None
@@ -51,15 +52,18 @@ class PredictRequest(BaseModel):
 
 @app.get('/health')
 def health():
-    if bundle is None:raise HTTPException(503,'No trained model. Run train.py offline, then restart the service.')
-    return {'status':'ready','modelVersion':bundle['metadata']['modelVersion'],'featureSchemaVersion':SCHEMA}
+    model=hybrid_models.current(bundle)
+    if model is None:raise HTTPException(503,'No trained model. Run train.py offline, then restart the service.')
+    return {'status':'ready','modelVersion':model['metadata']['modelVersion'],'featureSchemaVersion':SCHEMA}
 @app.post('/v1/predict',dependencies=[Depends(verify)])
 def predict(req:PredictRequest):
     if req.featureSchemaVersion!=SCHEMA:raise HTTPException(422,'Unsupported feature schema')
-    if bundle is None:raise HTTPException(503,'Model not loaded')
-    f=req.features.model_dump();score=float(bundle['model'].predict_proba(np.array([[f[k] for k in NAMES]]))[0,1])
-    return dict(transactionId=req.transactionId,score=score,modelVersion=bundle['metadata']['modelVersion'],featureSchemaVersion=SCHEMA)
+    model=hybrid_models.current(bundle)
+    if model is None:raise HTTPException(503,'Model not loaded')
+    f=req.features.model_dump();score=float(model['model'].predict_proba(np.array([[f[k] for k in NAMES]]))[0,1])
+    return dict(transactionId=req.transactionId,score=score,modelVersion=model['metadata']['modelVersion'],featureSchemaVersion=SCHEMA)
 @app.get('/v1/metrics',dependencies=[Depends(verify)])
 def metrics():
-    if bundle is None:raise HTTPException(503,'Model not loaded')
-    return bundle['metadata']
+    model=hybrid_models.current(bundle)
+    if model is None:raise HTTPException(503,'Model not loaded')
+    return model['metadata']

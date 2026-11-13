@@ -1,15 +1,16 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Badge, Empty } from "../../../components/common";
 import {
   money,
+  api,
   percent,
   type TransactionSummary,
 } from "../../../shared/services/api";
 import { compareTransaction } from "../_services/services";
-import { PersonalDatasets, RealDataModel } from "./ai-workspace";
+import { HybridModelSelector, PersonalDatasets, RealDataModel } from "./ai-workspace";
 export function AiPanel({
-  status,
-  metrics,
+  status: initialStatus,
+  metrics: initialMetrics,
   rows,
 }: {
   status: string;
@@ -17,11 +18,27 @@ export function AiPanel({
   rows: TransactionSummary[];
 }) {
   const [tab, setTab] = useState("real");
+  const [modelRevision, setModelRevision] = useState(0);
+  const [currentModel, setCurrentModel] = useState<{ status: string; metrics: any } | null>(null);
+  const status = currentModel?.status ?? initialStatus;
+  const metrics = currentModel ? currentModel.metrics : initialMetrics;
+  useEffect(() => {
+    if (tab !== "native") return;
+    const controller = new AbortController();
+    setCurrentModel({ status: "Loading", metrics: null });
+    Promise.all([
+      api<{ status: string }>("/ai/status", { signal: controller.signal }),
+      api<any>("/ai/metrics", { signal: controller.signal }),
+    ]).then(([s, m]) => { if (!controller.signal.aborted) setCurrentModel({ status: s.status, metrics: m }); })
+      .catch(() => { if (!controller.signal.aborted) setCurrentModel({ status: "Unavailable", metrics: null }); });
+    return () => controller.abort();
+  }, [tab, modelRevision]);
   const [id, setId] = useState(""),
     [comparison, setComparison] = useState<any>(null),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
   return <>
+    <HybridModelSelector onApplied={() => setModelRevision(r => r + 1)} />
     <div className="workspace-tabs" role="group" aria-label="Mô hình và dữ liệu AI">
       {[["real", "Dữ liệu thực ULB"], ["datasets", "Bộ dữ liệu của tôi"], ["native", "AI giao dịch VND"]].map(([key, label]) => <button key={key} className={tab === key ? "active" : ""} aria-pressed={tab === key} onClick={() => setTab(key)}>{label}</button>)}
     </div>

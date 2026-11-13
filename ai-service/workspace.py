@@ -1,5 +1,6 @@
-"""Owned dataset drafts and isolated training jobs; never promotes a user model globally."""
+"""Owned datasets and explicit administrator promotion of native model snapshots."""
 import csv
+import hashlib
 import json
 import logging
 import os
@@ -14,6 +15,7 @@ from uuid import uuid4
 
 import joblib
 import numpy as np
+import hybrid_models
 from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -129,6 +131,56 @@ def validate_row(row):
         if not row[key]:
             raise HTTPException(422, 'Các trường định danh không được để trống.')
     return row
+
+
+class HybridSelection(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    datasetId: str | None = None
+
+
+@router.get('/hybrid-model')
+def hybrid_model(x_actor: str = Header(default=''), x_actor_role: str = Header(default='')):
+    actor(x_actor)
+    try:
+        active = hybrid_models.selection()['active']
+    except HTTPException as exc:
+        if exc.status_code != 503:
+            raise
+        active = dict(datasetId=None, name='Mô hình đã chọn không thể nạp; cần chọn lại', modelVersion=None)
+    return dict(active=active, canManage=x_actor_role == 'Admin',
+                options=[dict(datasetId=d['id'], name=d['name'], modelVersion=d['metrics']['modelVersion'])
+                         for d in list_datasets(x_actor) if d['status'] == 'ready' and d['metrics']])
+
+
+@router.post('/hybrid-model')
+def select_hybrid_model(req: HybridSelection, x_actor: str = Header(default=''), x_actor_role: str = Header(default='')):
+    actor(x_actor)
+    if x_actor_role != 'Admin':
+        raise HTTPException(403, 'Chỉ Admin được đổi mô hình Hybrid toàn hệ thống.')
+    with lock:
+        if req.datasetId is None:
+            active = dict(datasetId=None, name='Mô hình VND mặc định', modelVersion=None, selectedAt=now())
+            hybrid_models.apply(None, active)
+        else:
+            data = read_owned(req.datasetId, x_actor)
+            if data['status'] != 'ready' or not data['metrics']:
+                raise HTTPException(409, 'Cần huấn luyện xong phiên bản dữ liệu hiện tại trước khi áp dụng.')
+            try:
+                bundle = hybrid_models.validate(joblib.load(folder(req.datasetId)/'model'/'model.joblib'))
+            except HTTPException:
+                raise
+            except Exception as exc:
+                raise HTTPException(409, 'Không thể nạp mô hình của bộ dữ liệu. Hãy huấn luyện lại.') from exc
+            if bundle['metadata']['modelVersion'] != data['metrics']['modelVersion']:
+                raise HTTPException(409, 'Phiên bản mô hình không khớp với bộ dữ liệu.')
+            fingerprint = hashlib.sha256((folder(req.datasetId)/'model'/'model.joblib').read_bytes()).hexdigest()[:12]
+            bundle['metadata'] = {**bundle['metadata'], 'sourceModelVersion': bundle['metadata']['modelVersion'],
+                                  'modelVersion': f"{bundle['metadata']['modelVersion']}-ds-{req.datasetId}-{fingerprint}"}
+            # Persist a copy, independent from future dataset edits, retraining or deletion.
+            active = dict(datasetId=req.datasetId, name=data['name'],
+                          modelVersion=bundle['metadata']['modelVersion'], selectedAt=now())
+            hybrid_models.apply(bundle, active)
+        return hybrid_model(x_actor, x_actor_role)
 
 
 @router.get('/datasets')
