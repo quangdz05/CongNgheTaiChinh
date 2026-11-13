@@ -21,7 +21,28 @@ import {
 } from "../_services/services";
 
 const displayDate = (date: string) =>
-  new Date(date).toLocaleString("vi-VN", { timeZoneName: "short" });
+  `${new Date(date).toLocaleString("vi-VN", {
+    timeZone: "Asia/Ho_Chi_Minh",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  })} (giờ Việt Nam)`;
+
+function alertTitle(userId: string, merchant: string) {
+  const demo = /^DEMO-[a-f0-9]{6}-(NORMAL|HIGH|CRITICAL|VELOCITY|RING-\d+)$/.exec(userId);
+  if (!demo) return `${merchant} · Khách hàng ${userId}`;
+  const names: Record<string, string> = {
+    NORMAL: "Giao dịch thông thường",
+    HIGH: "Giao dịch giá trị lớn",
+    CRITICAL: "Giao dịch giá trị rất lớn",
+    VELOCITY: "Nhiều giao dịch liên tiếp",
+  };
+  return `Demo: ${names[demo[1]] ?? `Nhóm dùng chung thiết bị ${Number(demo[1].split("-")[1]) + 1}`}`;
+}
 
 function EvidenceList({ json }: { json: string }) {
   const records = JSON.parse(json) as {
@@ -221,7 +242,7 @@ export function AlertQueue({
         <div>
           <h2>Công việc điều tra</h2>
           <p>
-            {stats?.openAlerts ?? "—"} đang mở · {stats?.overdue ?? "—"} quá SLA
+            {stats?.openAlerts ?? "—"} đang mở · {stats?.overdue ?? "—"} quá hạn xử lí
             · {stats?.states.Escalated ?? "—"} chuyển cấp
           </p>
           <p>
@@ -303,7 +324,7 @@ export function AlertQueue({
               filterChanged();
             }}
           />
-          Quá SLA
+          Quá hạn xử lí
         </label>
       </div>
       {error && (
@@ -331,11 +352,15 @@ export function AlertQueue({
                     className="alert-link"
                     onClick={() => setSelected(a.id)}
                   >
-                    {a.id.slice(0, 8)} · {a.userId}
+                    {alertTitle(a.userId, a.merchant)}
                   </button>
                   <small>
-                    {a.transactionId.slice(0, 8)} · {a.merchant} ·{" "}
+                    {a.merchant} ·{" "}
                     {money(a.amount)} · {a.decision}
+                  </small>
+                  <small>
+                    Mã cảnh báo: {a.id.slice(0, 8)} · Mã giao dịch:{" "}
+                    {a.transactionId.slice(0, 8)} · {a.userId}
                   </small>
                 </td>
                 <td>
@@ -351,7 +376,7 @@ export function AlertQueue({
                   {displayDate(a.dueAt)}
                   {a.status !== "Closed" &&
                     new Date(a.dueAt).getTime() <= effectiveNow && (
-                      <strong className="text-amber">Quá SLA</strong>
+                      <strong className="text-amber">Quá hạn xử lí</strong>
                     )}
                 </td>
                 <td>
@@ -695,8 +720,8 @@ function AlertInspector({
               : new Date(a.dueAt).getTime() <=
                   new Date(detail.serverNow).getTime() +
                     Math.max(0, now - lastSync)
-                ? "Đã quá SLA"
-                : "Chưa quá SLA"}
+                ? "Đã quá hạn xử lí"
+                : "Chưa quá hạn xử lí"}
             <br />
             Nguồn: {a.sourceType} · Ưu tiên: {a.priorityReason}
           </p>

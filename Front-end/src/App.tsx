@@ -472,7 +472,7 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
                     label: "Cảnh báo đang mở",
                     value: alertStats?.openAlerts ?? 0,
                     Icon: Clock3,
-                    meta: `${alertStats?.overdue ?? 0} quá SLA · gồm Waiting / Escalated`,
+                    meta: `${alertStats?.overdue ?? 0} quá thời gian xử lí · gồm Waiting / Escalated`,
                     tone: "amber",
                   },
                   {
