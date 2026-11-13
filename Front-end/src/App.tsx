@@ -98,7 +98,6 @@ export default function App() {
 }
 function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
   const [page, setPage] = useState<Page>("overview"),
-    [demoMode, setDemoMode] = useState("RulesOnly"),
     [stats, setStats] = useState<Stats | null>(null),
     [rows, setRows] = useState<TransactionSummary[]>([]),
     [total, setTotal] = useState(0),
@@ -256,7 +255,7 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
     setBusy(true);
     setError("");
     try {
-      const r = await post<{ count: number }>("/demo", { mode: demoMode });
+      const r = await post<{ count: number }>("/demo", { mode: "Hybrid" });
       notify(
         `Đã tạo ${r.count} giao dịch mô phỏng. Không có giao dịch tiền thật.`,
       );
@@ -418,23 +417,12 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
             <details className="panel">
               <summary>Dữ liệu mô phỏng</summary>
               <p className="helper">
-                Thêm 18 giao dịch mô phỏng vào dữ liệu hiện tại. Giao dịch có
+                Thêm 18 giao dịch mô phỏng, phân tích bằng luật kết hợp AI (Hybrid),
+                vào dữ liệu hiện tại. Giao dịch có
                 kết quả REVIEW hoặc BLOCK sẽ tạo cảnh báo. Mỗi lần bấm tạo thêm
                 một bộ mới.
               </p>
-              <div className="mode-bar" style={{ flexWrap: "wrap", gap: 12 }}>
-                <label htmlFor="demo-analysis-mode">
-                  Chế độ phân tích bộ demo
-                </label>
-                <select
-                  id="demo-analysis-mode"
-                  value={demoMode}
-                  onChange={(e) => setDemoMode(e.target.value)}
-                  disabled={busy}
-                >
-                  <option value="RulesOnly">Chỉ dùng luật</option>
-                  <option value="Hybrid">Luật kết hợp AI</option>
-                </select>
+              <div className="actions">
                 <button className="button" onClick={demo} disabled={busy}>
                   {busy ? (
                     <LoaderCircle size={16} className="spin" />
@@ -444,11 +432,6 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
                   {busy ? "Đang tạo bộ demo…" : "Tạo bộ demo 18 giao dịch"}
                 </button>
               </div>
-              <p className="helper">
-                Chế độ này chỉ áp dụng cho bộ demo sắp tạo. Kết quả giao dịch đã
-                lưu không thay đổi. Khi tạo giao dịch riêng, chọn chế độ trong
-                biểu mẫu.
-              </p>
             </details>
           )}
           {error && (
