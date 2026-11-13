@@ -1,5 +1,4 @@
 import {
-  Activity,
   AlertTriangle,
   ArrowLeftRight,
   ArrowUpRight,
@@ -99,7 +98,7 @@ export default function App() {
 }
 function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
   const [page, setPage] = useState<Page>("overview"),
-    [mode, setMode] = useState("RulesOnly"),
+    [demoMode, setDemoMode] = useState("RulesOnly"),
     [stats, setStats] = useState<Stats | null>(null),
     [rows, setRows] = useState<TransactionSummary[]>([]),
     [total, setTotal] = useState(0),
@@ -257,7 +256,7 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
     setBusy(true);
     setError("");
     try {
-      const r = await post<{ count: number }>("/demo", { mode });
+      const r = await post<{ count: number }>("/demo", { mode: demoMode });
       notify(
         `Đã tạo ${r.count} giao dịch mô phỏng. Không có giao dịch tiền thật.`,
       );
@@ -381,54 +380,77 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
               </p>
             </div>
             <div className="actions">
-              <button className="button" onClick={demo} disabled={busy}>
-                {busy ? (
-                  <LoaderCircle size={16} className="spin" />
-                ) : (
-                  <Play size={16} />
-                )}
-                Tạo bộ demo
-              </button>
-              <button
-                className="button"
-                onClick={() => void load()}
-                aria-label="Tải lại"
-              >
-                <RefreshCw size={16} />
-              </button>
-              <button
-                className="button primary"
-                onClick={() => setFormOpen(true)}
-              >
-                <Plus size={17} /> Tạo giao dịch
-              </button>
+              {page === "overview" && (
+                <>
+                  <button
+                    className="button"
+                    onClick={() => setPage("transactions")}
+                  >
+                    Xem giao dịch
+                  </button>
+                  <button className="button" onClick={() => setPage("alerts")}>
+                    Xem cảnh báo
+                  </button>
+                </>
+              )}
+              {["overview", "transactions", "network", "audit"].includes(
+                page,
+              ) && (
+                <button
+                  className="button"
+                  onClick={() => void load()}
+                  aria-label="Tải lại"
+                >
+                  <RefreshCw size={16} />
+                </button>
+              )}
+              {page === "transactions" && (
+                <button
+                  className="button primary"
+                  onClick={() => setFormOpen(true)}
+                >
+                  <Plus size={17} /> Tạo giao dịch
+                </button>
+              )}
             </div>
           </div>
-          {page !== "ai" && <div className="mode-bar">
-            <div>
-              <span className="mode-icon">
-                <Activity size={17} />
-              </span>
-              <span>
-                <strong>
-                  {mode === "RulesOnly" ? "Phân tích bằng luật" : "Phân tích Hybrid"}
-                </strong>
-                <small>
-                  {mode === "RulesOnly"
-                    ? "Chỉ dùng luật nghiệp vụ · Không gọi AI"
-                    : "Luật + AI API · Khi AI lỗi chuyển kiểm tra"}
-                </small>
-              </span>
-            </div>
-            <select
-              aria-label="Chế độ phân tích"
-              value={mode}
-              onChange={(e) => setMode(e.target.value)}
-            >
-              <option value="RulesOnly">Rules Only</option>
-              <option value="Hybrid">Hybrid + AI</option>
-            </select>
-          </div>}
+          {page === "transactions" && (
+            <details className="panel">
+              <summary>Dữ liệu mô phỏng</summary>
+              <p className="helper">
+                Thêm 18 giao dịch mô phỏng vào dữ liệu hiện tại. Giao dịch có
+                kết quả REVIEW hoặc BLOCK sẽ tạo cảnh báo. Mỗi lần bấm tạo thêm
+                một bộ mới.
+              </p>
+              <div className="mode-bar" style={{ flexWrap: "wrap", gap: 12 }}>
+                <label htmlFor="demo-analysis-mode">
+                  Chế độ phân tích bộ demo
+                </label>
+                <select
+                  id="demo-analysis-mode"
+                  value={demoMode}
+                  onChange={(e) => setDemoMode(e.target.value)}
+                  disabled={busy}
+                >
+                  <option value="RulesOnly">Chỉ dùng luật</option>
+                  <option value="Hybrid">Luật kết hợp AI</option>
+                </select>
+                <button className="button" onClick={demo} disabled={busy}>
+                  {busy ? (
+                    <LoaderCircle size={16} className="spin" />
+                  ) : (
+                    <Play size={16} />
+                  )}
+                  {busy ? "Đang tạo bộ demo…" : "Tạo bộ demo 18 giao dịch"}
+                </button>
+              </div>
+              <p className="helper">
+                Chế độ này chỉ áp dụng cho bộ demo sắp tạo. Kết quả giao dịch đã
+                lưu không thay đổi. Khi tạo giao dịch riêng, chọn chế độ trong
+                biểu mẫu.
+              </p>
+            </details>
+          )}
           {error && (
             <div className="error" role="alert">
               <AlertTriangle size={18} />
@@ -570,18 +592,6 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
                     Độ trễ gồm chờ xử lý, chưa gồm lưu DB và mạng. Nhãn gian lận
                     chỉ ghi nhận sau kiểm tra.
                   </p>
-                  <button
-                    className="button wide"
-                    onClick={demo}
-                    disabled={busy}
-                  >
-                    {busy ? (
-                      <LoaderCircle size={16} className="spin" />
-                    ) : (
-                      <Play size={16} />
-                    )}{" "}
-                    Tạo bộ demo 18 giao dịch
-                  </button>
                 </section>
               </div>
             </>
@@ -601,9 +611,11 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
                   <h2>Giao dịch gần đây</h2>
                   <p>Chọn một giao dịch để xem căn cứ và kết quả kiểm tra.</p>
                 </div>
-                <button className="button" onClick={exportCsv}>
-                  <Download size={15} /> Xuất CSV
-                </button>
+                {page === "transactions" && (
+                  <button className="button" onClick={exportCsv}>
+                    <Download size={15} /> Xuất CSV
+                  </button>
+                )}
               </div>
               <div className="toolbar">
                 <label className="search">
@@ -662,26 +674,54 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
                         </td>
                         <td className="amount">{money(t.amount)}</td>
                         <td>
-                          {t.analysisStrategy === "RiskSignals" ? <div className="risk-tags">
-                            {[...new Set((t.riskFindings ?? []).filter(f => f.action === "REVIEW").map(f => f.group))].map(g => <span className="badge review" key={g}>{{frequency: "Tần suất", value: "Giá trị", context: "Truy cập", linkage: "Liên kết tài khoản", model: "Tín hiệu AI", data_quality: "Thiếu đánh giá AI"}[g] ?? g}</span>)}
-                            {!(t.riskFindings ?? []).some(f => f.action === "REVIEW") && <small>Chưa có cờ kiểm tra</small>}
-                            {(t.riskFindings ?? []).some(f => f.code === "LIMITED_HISTORY") && <small>Chưa đủ lịch sử</small>}
-                          </div> : <><small>Chấm điểm cũ</small><span className="score">
-                            <span className="score-track">
-                              <i
-                                style={{
-                                  width: percent(t.finalScore ?? 0),
-                                  background:
-                                    t.decision === "BLOCK"
-                                      ? "#db6464"
-                                      : t.decision === "REVIEW"
-                                        ? "#d7a03d"
-                                        : "#36a88a",
-                                }}
-                              />
-                            </span>
-                            {percent(t.finalScore ?? 0)}
-                          </span></>}
+                          {t.analysisStrategy === "RiskSignals" ? (
+                            <div className="risk-tags">
+                              {[
+                                ...new Set(
+                                  (t.riskFindings ?? [])
+                                    .filter((f) => f.action === "REVIEW")
+                                    .map((f) => f.group),
+                                ),
+                              ].map((g) => (
+                                <span className="badge review" key={g}>
+                                  {{
+                                    frequency: "Tần suất",
+                                    value: "Giá trị",
+                                    context: "Truy cập",
+                                    linkage: "Liên kết tài khoản",
+                                    model: "Tín hiệu AI",
+                                    data_quality: "Thiếu đánh giá AI",
+                                  }[g] ?? g}
+                                </span>
+                              ))}
+                              {!(t.riskFindings ?? []).some(
+                                (f) => f.action === "REVIEW",
+                              ) && <small>Chưa có cờ kiểm tra</small>}
+                              {(t.riskFindings ?? []).some(
+                                (f) => f.code === "LIMITED_HISTORY",
+                              ) && <small>Chưa đủ lịch sử</small>}
+                            </div>
+                          ) : (
+                            <>
+                              <small>Chấm điểm cũ</small>
+                              <span className="score">
+                                <span className="score-track">
+                                  <i
+                                    style={{
+                                      width: percent(t.finalScore ?? 0),
+                                      background:
+                                        t.decision === "BLOCK"
+                                          ? "#db6464"
+                                          : t.decision === "REVIEW"
+                                            ? "#d7a03d"
+                                            : "#36a88a",
+                                    }}
+                                  />
+                                </span>
+                                {percent(t.finalScore ?? 0)}
+                              </span>
+                            </>
+                          )}
                         </td>
                         <td>
                           <Badge value={t.decision} />
@@ -697,16 +737,32 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
                   </tbody>
                 </table>
               </div>
-              {transactionsLoading && <div className="empty" role="status"><LoaderCircle className="spin" size={26} /><strong>Đang tải giao dịch…</strong></div>}
+              {transactionsLoading && (
+                <div className="empty" role="status">
+                  <LoaderCircle className="spin" size={26} />
+                  <strong>Đang tải giao dịch…</strong>
+                </div>
+              )}
               {!transactionsLoading && !visibleRows.length && (
                 <>
-                <Empty
-                  text="Chưa có giao dịch phù hợp"
-                  detail={
-                    "Bạn có thể nhập và lưu giao dịch riêng bằng nút Tạo giao dịch."
-                  }
-                />
-                <div style={{ textAlign: "center", paddingBottom: 24 }}><button className="button primary" onClick={() => setFormOpen(true)}><Plus size={17} /> Tạo giao dịch mới</button></div>
+                  <Empty
+                    text="Chưa có giao dịch phù hợp"
+                    detail={
+                      page === "transactions"
+                        ? "Thử đổi bộ lọc hoặc nhập giao dịch bằng nút Tạo giao dịch."
+                        : "Mở trang Giao dịch để tra cứu hoặc tạo giao dịch mới."
+                    }
+                  />
+                  {page === "overview" && (
+                    <div style={{ textAlign: "center", paddingBottom: 24 }}>
+                      <button
+                        className="button"
+                        onClick={() => setPage("transactions")}
+                      >
+                        Xem giao dịch
+                      </button>
+                    </div>
+                  )}
                 </>
               )}
               <div className="pagination">
@@ -772,7 +828,7 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
               ) : (
                 <Empty
                   text="Chưa có nhóm liên kết"
-                  detail="Bộ demo có tình huống nhiều tài khoản dùng chung thiết bị."
+                  detail="Chưa có dữ liệu liên kết để hiển thị. Có thể chuẩn bị dữ liệu mô phỏng tại trang Giao dịch."
                 />
               )}
             </section>
@@ -819,7 +875,7 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
       )}
       {formOpen && (
         <TransactionForm
-          mode={mode}
+          mode="RulesOnly"
           onClose={() => setFormOpen(false)}
           onSuccess={(t) => {
             setFormOpen(false);
