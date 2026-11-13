@@ -11,6 +11,9 @@ public sealed class AlertRepository(FraudDbContext db) : IAlertRepository
     public Task<AlertCommandReceipt?> ReceiptAsync(Guid id, Guid requestId, CancellationToken ct) => db.AlertCommandReceipts.AsNoTracking().SingleOrDefaultAsync(r => r.AlertId == id && r.RequestId == requestId, ct);
     public async Task SaveAsync(Alert alert, AlertEvent entry, AlertCommandReceipt? receipt, CancellationToken ct)
     {
+        // Demo creation and assignment share a context that still tracks the newly created alert.
+        var tracked = db.Alerts.Local.FirstOrDefault(a => a.Id == alert.Id);
+        if (tracked != null && !ReferenceEquals(tracked, alert)) db.Entry(tracked).State = EntityState.Detached;
         db.Attach(alert);
         db.Entry(alert).State = EntityState.Modified;
         db.Entry(alert).Property(a => a.Version).OriginalValue = entry.BeforeVersion;

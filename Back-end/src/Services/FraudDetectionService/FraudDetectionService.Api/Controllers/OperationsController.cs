@@ -34,7 +34,13 @@ public sealed class OperationsController(IFraudRepository repository, IAiClient 
         }) : Content(json, "application/json");
     }
     [HttpPost("demo"), Authorize(Roles = "Admin,Analyst")]
-    public Task<DemoResult> Demo(DemoRequest request, CancellationToken ct) => demo.Handle(new(request.Mode), ct);
+    public async Task<DemoResult> Demo(DemoRequest request, CancellationToken ct)
+    {
+        var actor = await repository.UserAsync(User.Identity?.Name ?? "", ct);
+        if (actor == null || actor.Role is not ("Admin" or "Analyst"))
+            throw new AlertException(403, "ALERT_FORBIDDEN", "Tài khoản không còn quyền tạo demo.");
+        return await demo.Handle(new(request.Mode, request.OwnerUserId, new(actor.Id, actor.Username, actor.Role)), ct);
+    }
     [HttpPost("compare/{id:guid}")]
     public async Task<IActionResult> Compare(Guid id, CancellationToken ct)
     {
@@ -42,4 +48,4 @@ public sealed class OperationsController(IFraudRepository repository, IAiClient 
         return result == null ? NotFound() : Ok(result);
     }
 }
-public record DemoRequest(string Mode = "RulesOnly");
+public record DemoRequest(string Mode = "RulesOnly", int? OwnerUserId = null);

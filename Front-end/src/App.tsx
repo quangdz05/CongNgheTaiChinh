@@ -26,7 +26,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge, Empty } from "./components/common";
 import { AiPanel } from "./features/ai/_components/ai-panel";
 import { AlertQueue } from "./features/alerts/_components/alert-queue";
-import { type AlertStats } from "./features/alerts/_services/services";
+import {
+  type AlertStats,
+  type AlertUser,
+} from "./features/alerts/_services/services";
 import { Login } from "./features/auth/_components/login-form";
 import { Rules } from "./features/rules/_components/rules-form";
 import { Detail } from "./features/transactions/_components/transaction-detail";
@@ -116,6 +119,37 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
   const [revision, setRevision] = useState(0);
   const [transactionsLoading, setTransactionsLoading] = useState(true);
   const [alertStats, setAlertStats] = useState<AlertStats | null>(null);
+  const [demoAnalysts, setDemoAnalysts] = useState<AlertUser[]>([]);
+  const [demoOwner, setDemoOwner] = useState("");
+  const [demoUsersLoading, setDemoUsersLoading] = useState(false);
+  const [demoUsersError, setDemoUsersError] = useState("");
+  const [demoUsersRevision, setDemoUsersRevision] = useState(0);
+  useEffect(() => {
+    if (page !== "transactions") return;
+    const controller = new AbortController();
+    setDemoUsersLoading(true);
+    setDemoUsersError("");
+    api<AlertUser[]>("/alerts/users", { signal: controller.signal })
+      .then((users) => {
+        if (controller.signal.aborted) return;
+        const analysts = users.filter((u) => u.role === "Analyst");
+        setDemoAnalysts(analysts);
+        setDemoOwner((current) =>
+          analysts.some((u) => String(u.id) === current) ? current : "",
+        );
+      })
+      .catch((e: Error) => {
+        if (!controller.signal.aborted) {
+          setDemoAnalysts([]);
+          setDemoOwner("");
+          setDemoUsersError(e.message);
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setDemoUsersLoading(false);
+      });
+    return () => controller.abort();
+  }, [page, demoUsersRevision]);
   useEffect(() => {
     let active = true;
     let controller: AbortController | null = null;
@@ -252,12 +286,19 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
     }
   }
   async function demo() {
+    if (!demoAnalysts.some((analyst) => String(analyst.id) === demoOwner)) {
+      setError("Hãy chọn analyst phụ trách trước khi tạo demo.");
+      return;
+    }
     setBusy(true);
     setError("");
     try {
-      const r = await post<{ count: number }>("/demo", { mode: "Hybrid" });
+      const r = await post<{ count: number }>("/demo", {
+        mode: "Hybrid",
+        ownerUserId: Number(demoOwner),
+      });
       notify(
-        `Đã tạo ${r.count} giao dịch mô phỏng. Không có giao dịch tiền thật.`,
+        `Đã tạo ${r.count} giao dịch mô phỏng và phân công cảnh báo cho ${demoAnalysts.find((analyst) => String(analyst.id) === demoOwner)?.username}.`,
       );
       await load();
     } catch (e) {
@@ -416,21 +457,76 @@ function Workspace({ user, onLogout }: { user: User; onLogout: () => void }) {
           {page === "transactions" && (
             <details className="panel demo-panel">
               <summary className="demo-summary">
-                <span className="demo-icon"><Play size={19} aria-hidden="true" /></span>
+                <span className="demo-icon">
+                  <Play size={19} aria-hidden="true" />
+                </span>
                 <span className="demo-heading">
                   <strong>Dữ liệu mô phỏng</strong>
                   <span>Chuẩn bị các tình huống mẫu để khám phá hệ thống</span>
                 </span>
                 <span className="demo-count">18 giao dịch</span>
-                <ChevronRight className="demo-chevron" size={18} aria-hidden="true" />
+                <ChevronRight
+                  className="demo-chevron"
+                  size={18}
+                  aria-hidden="true"
+                />
               </summary>
               <div className="demo-body">
                 <div className="demo-description">
                   <span className="demo-label">LUẬT KẾT HỢP AI · HYBRID</span>
-                  <p>Gồm giao dịch thông thường, giá trị cao, chuỗi liên tiếp và nhiều tài khoản dùng chung thiết bị.</p>
-                  <small>Mỗi lần tạo thêm 18 giao dịch. Kết quả REVIEW hoặc BLOCK sẽ tạo cảnh báo.</small>
+                  <p>
+                    Gồm giao dịch thông thường, giá trị cao, chuỗi liên tiếp và
+                    nhiều tài khoản dùng chung thiết bị.
+                  </p>
+                  <small>
+                    Mỗi lần tạo thêm 18 giao dịch. Kết quả REVIEW hoặc BLOCK sẽ
+                    tạo cảnh báo.
+                  </small>
+                  <label htmlFor="demo-owner">Analyst phụ trách</label>
+                  <select
+                    id="demo-owner"
+                    value={demoOwner}
+                    onChange={(e) => setDemoOwner(e.target.value)}
+                    disabled={busy || demoUsersLoading}
+                  >
+                    <option value="">
+                      {demoUsersLoading
+                        ? "Đang tải analyst…"
+                        : "Chọn analyst phụ trách"}
+                    </option>
+                    {demoAnalysts.map((analyst) => (
+                      <option key={analyst.id} value={analyst.id}>
+                        {analyst.username}
+                      </option>
+                    ))}
+                  </select>
+                  {!demoUsersLoading &&
+                    !demoUsersError &&
+                    demoAnalysts.length === 0 && (
+                      <small>Chưa có tài khoản Analyst để phân công.</small>
+                    )}
+                  {demoUsersError && (
+                    <div role="alert">
+                      Không tải được danh sách analyst: {demoUsersError}{" "}
+                      <button
+                        className="button"
+                        onClick={() => setDemoUsersRevision((n) => n + 1)}
+                      >
+                        Thử lại
+                      </button>
+                    </div>
+                  )}
+                  <small>
+                    Cảnh báo mới sẽ được phân công cho analyst đã chọn.
+                  </small>
                 </div>
-                <button className="button primary demo-create" onClick={demo} disabled={busy}>
+                <button
+                  className="button primary demo-create"
+                  onClick={demo}
+                  disabled={
+                    busy || demoUsersLoading || !demoOwner || !!demoUsersError
+                  }
+                >
                   {busy ? (
                     <LoaderCircle size={16} className="spin" />
                   ) : (
